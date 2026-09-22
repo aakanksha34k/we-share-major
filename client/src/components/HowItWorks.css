@@ -1,0 +1,95 @@
+.how-it-works {
+  padding: 80px 40px;
+  background-color: #f5f6fa;
+  text-align: center;
+}
+
+.how-header {
+  margin-bottom: 48px;
+}
+
+.how-header h2 {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #2d3436;
+  margin-bottom: 8px;
+}
+
+.how-underline {
+  width: 50px;
+  height: 4px;
+  background: #00b894;
+  margin: 0 auto 16px auto;
+  border-radius: 2px;
+}
+
+.how-header p {
+  font-size: 1rem;
+  color: #636e72;
+  max-width: 500px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+
+.how-cards {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.how-card {
+  background: white;
+  border-radius: 16px;
+  padding: 36px 28px;
+  width: 280px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  text-align: left;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.how-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.how-icon {
+  font-size: 2rem;
+  margin-bottom: 16px;
+  background: #e8f8f5;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+
+.how-card h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #2d3436;
+  margin-bottom: 12px;
+}
+
+.how-card p {
+  font-size: 0.9rem;
+  color: #636e72;
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .how-it-works {
+    padding: 40px 20px;
+  }
+
+  .how-cards {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .how-card {
+    width: 100%;
+    max-width: 360px;
+  }
+}

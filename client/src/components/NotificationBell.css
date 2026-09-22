@@ -1,0 +1,113 @@
+/* client/src/components/NotificationBell.css */
+.notification-bell-container {
+  position: relative;
+  display: inline-block;
+  margin-right: 20px;
+}
+
+.bell-icon {
+  font-size: 1.5rem;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+
+.bell-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-dropdown {
+  position: absolute;
+  top: 40px;
+  right: -10px;
+  width: 320px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  border: 1px solid #e2e8f0;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.n-header {
+  padding: 15px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+}
+
+.n-header h4 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 1rem;
+}
+
+.btn-mark-all {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.btn-mark-all:hover {
+  text-decoration: underline;
+}
+
+.n-list {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.n-empty {
+  padding: 20px;
+  text-align: center;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.n-item {
+  padding: 15px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.n-item:last-child {
+  border-bottom: none;
+}
+
+.n-item:hover {
+  background: #f8fafc;
+}
+
+.n-item.unread {
+  background: #eff6ff;
+  border-left: 3px solid #3b82f6;
+}
+
+.n-item p {
+  margin: 0 0 5px 0;
+  font-size: 0.9rem;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.n-time {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}

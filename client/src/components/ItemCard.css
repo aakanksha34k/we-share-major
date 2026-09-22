@@ -1,0 +1,130 @@
+/* ItemCard.css */
+
+.item-card {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+}
+
+.item-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Image */
+.item-image {
+  position: relative;
+  height: 160px;
+  background: #f5f6fa;
+  overflow: hidden;
+}
+
+.item-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.item-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  background: #f5f6fa;
+  color: #b2bec3;
+}
+
+/* Badges */
+.item-condition {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.item-condition.new {
+  background: #00b894;
+  color: white;
+}
+
+.item-condition.good {
+  background: #0984e3;
+  color: white;
+}
+
+.item-condition.used {
+  background: #636e72;
+  color: white;
+}
+
+.item-price-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #2d3436;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.item-free-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #00b894;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+/* Info */
+.item-info {
+  padding: 14px;
+}
+
+.item-info h4 {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #2d3436;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-meta {
+  font-size: 0.78rem;
+  color: #636e72;
+  margin-bottom: 12px;
+}
+
+.btn-view {
+  width: 100%;
+  padding: 8px;
+  background: white;
+  color: #00b894;
+  border: 1.5px solid #00b894;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-view:hover {
+  background: #00b894;
+  color: white;
+}

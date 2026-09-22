@@ -1,0 +1,102 @@
+/* Sidebar.css */
+
+.sidebar {
+  width: 220px;
+  min-height: 100vh;
+  background: white;
+  border-right: 1px solid #dfe6e9;
+  padding: 20px 16px;
+  flex-shrink: 0;
+}
+
+.sidebar-logo {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #00b894;
+  margin-bottom: 28px;
+  padding: 0 8px;
+}
+
+.sidebar-section {
+  margin-bottom: 28px;
+}
+
+.sidebar-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #b2bec3;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+  padding: 0 8px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #2d3436;
+  transition: all 0.2s;
+  margin-bottom: 2px;
+}
+
+.sidebar-item:hover {
+  background: #f5f6fa;
+  color: #00b894;
+}
+
+.sidebar-item.active {
+  background: #e8f8f5;
+  color: #00b894;
+  font-weight: 600;
+}
+
+.sidebar-uni {
+  font-size: 0.82rem;
+  color: #636e72;
+}
+
+/* Price Range */
+.price-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  margin-bottom: 10px;
+}
+
+.price-range input {
+  width: 70px;
+  padding: 6px 8px;
+  border: 1.5px solid #dfe6e9;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  outline: none;
+  color: #2d3436;
+}
+
+.price-range input:focus {
+  border-color: #00b894;
+}
+
+.price-range span {
+  color: #b2bec3;
+}
+
+.free-only {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  font-size: 0.85rem;
+  color: #636e72;
+  cursor: pointer;
+}
+
+.free-only input {
+  accent-color: #00b894;
+  cursor: pointer;
+}

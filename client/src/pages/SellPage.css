@@ -1,0 +1,223 @@
+/* SellPage.css */
+
+.sell-page {
+  min-height: 100vh;
+  background: #f5f6fa;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ── */
+.sell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 40px;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.sell-header-left {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.sell-logo {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #00b894;
+  cursor: pointer;
+}
+
+.sell-nav {
+  font-size: 0.9rem;
+  color: #636e72;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.sell-nav:hover {
+  color: #00b894;
+}
+
+.sell-search {
+  padding: 8px 16px;
+  border: 1.5px solid #dfe6e9;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  outline: none;
+  width: 200px;
+}
+
+.sell-search:focus {
+  border-color: #00b894;
+}
+
+/* ── Progress Steps ── */
+.sell-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 40px;
+  background: white;
+  border-bottom: 1px solid #dfe6e9;
+  gap: 0;
+}
+
+.progress-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #dfe6e9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #b2bec3;
+  background: white;
+  transition: all 0.3s;
+}
+
+.step-circle.active {
+  border-color: #00b894;
+  color: #00b894;
+}
+
+.step-circle.completed {
+  background: #00b894;
+  border-color: #00b894;
+  color: white;
+}
+
+.step-label {
+  font-size: 0.85rem;
+  color: #b2bec3;
+  font-weight: 500;
+}
+
+.step-label.active {
+  color: #00b894;
+  font-weight: 700;
+}
+
+.step-line {
+  width: 80px;
+  height: 2px;
+  background: #dfe6e9;
+  margin: 0 8px;
+  transition: background 0.3s;
+}
+
+.step-line.completed {
+  background: #00b894;
+}
+
+/* ── Content ── */
+.sell-content {
+  flex: 1;
+  padding: 32px 40px;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.sell-error {
+  background: #ffeaea;
+  border: 1px solid #ff7675;
+  color: #d63031;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+/* ── Footer ── */
+.sell-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 40px;
+  background: white;
+  border-top: 1px solid #dfe6e9;
+}
+
+.sell-footer-right {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-draft {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1.5px solid #dfe6e9;
+  border-radius: 8px;
+  color: #636e72;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-draft:hover {
+  border-color: #00b894;
+  color: #00b894;
+}
+
+.btn-back {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1.5px solid #dfe6e9;
+  border-radius: 8px;
+  color: #636e72;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-back:hover {
+  border-color: #2d3436;
+  color: #2d3436;
+}
+
+.btn-next {
+  padding: 10px 24px;
+  background: #00b894;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-next:hover {
+  background: #00a381;
+}
+
+.btn-publish {
+  padding: 10px 24px;
+  background: #00b894;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-publish:hover {
+  background: #00a381;
+}
+
+.btn-publish:disabled {
+  background: #b2bec3;
+  cursor: not-allowed;
+}
