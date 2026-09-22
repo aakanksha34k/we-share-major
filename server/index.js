@@ -11,12 +11,6 @@ const startBorrowReminderJob = require('./jobs/borrowReminderJob');
 
 const PORT = process.env.PORT || 5000;
 
-/*
-|--------------------------------------------------------------------------
-| REQUIRED ENVIRONMENT VARIABLES
-|--------------------------------------------------------------------------
-*/
-
 if (!process.env.MONGODB_URI) {
   throw new Error('MONGODB_URI is required');
 }
@@ -39,31 +33,73 @@ app.disable('x-powered-by');
 */
 
 const allowedOrigins = [
-  // Local development
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://192.168.0.187:5173',
+  'https://we-share-major.vercel.app'
+];
 
-  // Production Vercel frontend
-  'https://we-share-major.vercel.app',
+const clientUrl = process.env.CLIENT_URL?.trim();
 
-  // Additional origins from Render environment variable
-  ...(process.env.CLIENT_URL || '')
+if (clientUrl) {
+  clientUrl
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean)
-];
+    .forEach((origin) => {
+      if (!allowedOrigins.includes(origin)) {
+        allowedOrigins.push(origin);
+      }
+    });
+}
 
-console.log('Allowed CORS origins:', allowedOrigins);
+console.log('=================================');
+console.log('Allowed CORS origins:');
+console.log(allowedOrigins);
+console.log('CLIENT_URL:', process.env.CLIENT_URL);
+console.log('=================================');
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests such as Postman/server-to-server
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.log('CORS rejected:', origin);
+
+    return callback(
+      new Error('Not allowed by CORS')
+    );
+  },
+
+  methods: [
+    'GET',
+    'POST',
+    'PUT',
+    'PATCH',
+    'DELETE',
+    'OPTIONS'
+  ],
+
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization'
+  ],
+
+  credentials: true,
+
+  optionsSuccessStatus: 204
+};
 
 /*
 |--------------------------------------------------------------------------
-| GOOGLE SIGN-IN / COOP
+| Google popup compatibility
 |--------------------------------------------------------------------------
-|
-| Google Identity Services uses popup/postMessage communication.
-| Allow cross-origin popups to communicate with the frontend.
-|
 */
 
 app.use((req, res, next) => {
@@ -77,53 +113,23 @@ app.use((req, res, next) => {
 
 /*
 |--------------------------------------------------------------------------
-| CORS MIDDLEWARE
+| CORS middleware
 |--------------------------------------------------------------------------
 */
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Requests without an Origin header are allowed.
-      // This includes some server-to-server requests.
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      console.warn(
-        `CORS blocked origin: ${origin}`
-      );
-
-      return callback(null, false);
-    },
-
-    methods: [
-      'GET',
-      'POST',
-      'PUT',
-      'PATCH',
-      'DELETE',
-      'OPTIONS'
-    ],
-
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization'
-    ],
-
-    credentials: true,
-
-    optionsSuccessStatus: 204
-  })
-);
+app.use(cors(corsOptions));
 
 /*
 |--------------------------------------------------------------------------
-| BODY PARSING
+| Explicit preflight handler
+|--------------------------------------------------------------------------
+*/
+
+app.options('*', cors(corsOptions));
+
+/*
+|--------------------------------------------------------------------------
+| Body parsers
 |--------------------------------------------------------------------------
 */
 
@@ -142,7 +148,7 @@ app.use(
 
 /*
 |--------------------------------------------------------------------------
-| API ROUTES
+| Routes
 |--------------------------------------------------------------------------
 */
 
@@ -188,7 +194,7 @@ app.use(
 
 /*
 |--------------------------------------------------------------------------
-| HEALTH CHECK
+| Health check
 |--------------------------------------------------------------------------
 */
 
@@ -200,7 +206,7 @@ app.get('/', (req, res) => {
 
 /*
 |--------------------------------------------------------------------------
-| 404 HANDLER
+| 404
 |--------------------------------------------------------------------------
 */
 
@@ -212,7 +218,7 @@ app.use((req, res) => {
 
 /*
 |--------------------------------------------------------------------------
-| ERROR HANDLER
+| Error handler
 |--------------------------------------------------------------------------
 */
 
@@ -227,13 +233,15 @@ app.use((err, req, res, next) => {
   }
 
   res.status(err.status || 500).json({
-    message: 'Internal server error'
+    message:
+      err.message ||
+      'Internal server error'
   });
 });
 
 /*
 |--------------------------------------------------------------------------
-| START SERVER
+| Start server
 |--------------------------------------------------------------------------
 */
 
@@ -247,7 +255,7 @@ const startServer = async () => {
       '✅ MongoDB Connected Successfully!'
     );
 
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(
         `🚀 Server running on port ${PORT}`
       );
