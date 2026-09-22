@@ -1,6 +1,3 @@
-```js
-// server/controllers/messageController.js
-
 const Message = require('../models/Message');
 
 const sendMessage = async (req, res) => {
@@ -153,4 +150,3 @@ module.exports = {
   getConversation,
   getConversationsList
 };
-```
