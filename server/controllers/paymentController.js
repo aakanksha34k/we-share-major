@@ -104,11 +104,47 @@ const verifyLateFee = async (req, res) => {
     request.lateFeePaymentStatus = 'captured';
     request.lateFeeRazorpayPaymentId = razorpay_payment_id;
     request.lateFeePaidAmount = Number(request.lateFeePaidAmount || 0) + Number(request.lateFeeAmount || 0);
-    request.lateFeeAmount = 0;
-    request.status = 'late_fee_paid';
-    await request.save();
-    await Payment.findOneAndUpdate({ razorpayOrderId: razorpay_order_id }, { $set: { razorpayPaymentId: razorpay_payment_id, status: 'captured' } });
-    await Notification.create({ recipient: request.lender, type: 'late_fee_paid', message: `Late fee of ₹${request.lateFeeAmount} was paid.`, relatedId: request._id });
+    const paidLateFee =
+  Number(request.lateFeeAmount || 0);
+
+request.lateFeePaymentStatus =
+  'captured';
+
+request.lateFeeRazorpayPaymentId =
+  razorpay_payment_id;
+
+request.lateFeePaidAmount =
+  Number(request.lateFeePaidAmount || 0) +
+  paidLateFee;
+
+request.lateFeeAmount = 0;
+
+request.status =
+  'late_fee_paid';
+
+await request.save();
+
+await Payment.findOneAndUpdate(
+  {
+    razorpayOrderId:
+      razorpay_order_id
+  },
+  {
+    $set: {
+      razorpayPaymentId:
+        razorpay_payment_id,
+      status: 'captured'
+    }
+  }
+);
+
+await Notification.create({
+  recipient: request.lender,
+  type: 'late_fee_paid',
+  message:
+    `Late fee of ₹${paidLateFee} was paid.`,
+  relatedId: request._id
+});
     res.json({ message: 'Late fee payment verified successfully.' });
   } catch (error) {
     console.error('Verify late fee:', error);
