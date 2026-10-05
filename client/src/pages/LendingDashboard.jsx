@@ -26,7 +26,12 @@ function LendingDashboard() {
 
   const handleAction = async (requestId, action) => {
     try {
-      if (action === 'approve') await api.put(`/borrow/${requestId}/approve`);
+      if (action === 'approve') await api.put(
+  `/borrow/${id}/approve`,
+  {
+    handoffOptionIndex: selectedOptionIndex
+  }
+);
       if (action === 'deny') await api.put(`/borrow/${requestId}/deny`);
       await fetchData();
     } catch (err) { alert(err.response?.data?.message || 'Action failed.'); }

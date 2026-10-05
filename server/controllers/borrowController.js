@@ -1,130 +1,161 @@
+const crypto = require('crypto');
+
 const BorrowRequest = require('../models/BorrowRequest');
 const Item = require('../models/Item');
 const Notification = require('../models/Notification');
-const crypto = require('crypto');
 
-const LATE_FEE_PER_DAY = Number(
-  process.env.LATE_FEE_PER_DAY || 20
-);
+const LATE_FEE_PER_DAY = Number(process.env.LATE_FEE_PER_DAY || 20);
 
 const hash = (value) =>
-  crypto
-    .createHash('sha256')
-    .update(value)
-    .digest('hex');
+  crypto.createHash('sha256').update(value).digest('hex');
 
-const randomToken = () =>
-  crypto.randomBytes(32).toString('hex');
+const randomToken = () => crypto.randomBytes(32).toString('hex');
 
 const randomCode = () =>
-  String(crypto.randomInt(100000, 1000000));
+  String(Math.floor(100000 + Math.random() * 900000));
 
-const createNotification = (
+const createNotification = async ({
   recipient,
   type,
+  title,
   message,
-  relatedId
-) =>
-  Notification.create({
-    recipient,
-    type,
-    message,
-    relatedId
-  });
+  request
+}) => {
+  try {
+    await Notification.create({
+      recipient,
+      type,
+      title,
+      message,
+      relatedRequest: request?._id || null
+    });
+  } catch (error) {
+    console.error('Notification error:', error.message);
+  }
+};
 
-const snapshotPickup = (item) => ({
-  label: item.pickupLocation || '',
-  address:
-    item.detailedLocation ||
-    item.pickupLocation ||
-    '',
-  latitude:
-    item.pickupCoordinates?.latitude ?? null,
-  longitude:
-    item.pickupCoordinates?.longitude ?? null
-});
+const snapshotPickup = (item) => {
+  if (!item?.pickupLocation) return null;
+
+  return {
+    label: item.pickupLocation.label || '',
+    address: item.pickupLocation.address || '',
+    latitude:
+      item.pickupLocation.latitude !== undefined
+        ? item.pickupLocation.latitude
+        : null,
+    longitude:
+      item.pickupLocation.longitude !== undefined
+        ? item.pickupLocation.longitude
+        : null
+  };
+};
 
 /*
 |--------------------------------------------------------------------------
-| CREATE REQUEST
+| CREATE BORROW REQUEST
 |--------------------------------------------------------------------------
-|
-| Borrower selects:
+| Borrower submits:
+| - itemId
 | - purpose
-| - up to 3 possible handoff date/time options
-|
-| Return date is NOT selected yet.
-|
+| - exactly 3 handoff date/time options
+| - return date/time
 */
-
 const createBorrowRequest = async (req, res) => {
   try {
-    const {
-      itemId,
-      purpose,
-      handoffOptions
-    } = req.body;
+    const { itemId, purpose, handoffOptions, returnDate } = req.body;
 
-    if (
-      !itemId ||
-      !purpose?.trim()
-    ) {
+    if (!itemId) {
       return res.status(400).json({
-        message:
-          'Item and purpose are required.'
+        message: 'Item is required.'
+      });
+    }
+
+    if (!purpose || !purpose.trim()) {
+      return res.status(400).json({
+        message: 'Purpose is required.'
       });
     }
 
     if (
       !Array.isArray(handoffOptions) ||
-      handoffOptions.length < 1 ||
-      handoffOptions.length > 3
+      handoffOptions.length !== 3
     ) {
       return res.status(400).json({
-        message:
-          'Please provide 1 to 3 handoff date/time options.'
+        message: 'Please provide exactly 3 handoff date/time options.'
       });
     }
+
+    if (!returnDate) {
+      return res.status(400).json({
+        message: 'Return date/time is required.'
+      });
+    }
+
+    const parsedOptions = handoffOptions.map((option) => {
+      const value =
+        typeof option === 'object'
+          ? option.dateTime
+          : option;
+
+      return new Date(value);
+    });
 
     const now = new Date();
 
-    const parsedOptions =
-      handoffOptions.map((value) => {
-        const date = new Date(value);
+    for (const date of parsedOptions) {
+      if (Number.isNaN(date.getTime())) {
+        return res.status(400).json({
+          message: 'One or more handoff dates are invalid.'
+        });
+      }
 
-        if (
-          Number.isNaN(date.getTime()) ||
-          date <= now
-        ) {
-          throw new Error(
-            'Every handoff option must be a valid future date and time.'
-          );
-        }
+      if (date <= now) {
+        return res.status(400).json({
+          message: 'All handoff options must be in the future.'
+        });
+      }
+    }
 
-        return {
-          dateTime: date
-        };
-      });
+    const timestamps = parsedOptions.map((date) => date.getTime());
 
-    /*
-     * Prevent duplicate handoff options.
-     */
-    const timestamps = parsedOptions.map(
-      (option) => option.dateTime.getTime()
-    );
-
-    if (
-      new Set(timestamps).size !==
-      timestamps.length
-    ) {
+    if (new Set(timestamps).size !== 3) {
       return res.status(400).json({
-        message:
-          'Handoff options must be different.'
+        message: 'All 3 handoff options must be different.'
       });
     }
 
-    const item =
-      await Item.findById(itemId);
+    const parsedReturnDate = new Date(returnDate);
+
+    if (Number.isNaN(parsedReturnDate.getTime())) {
+      return res.status(400).json({
+        message: 'Return date/time is invalid.'
+      });
+    }
+
+    if (parsedReturnDate <= now) {
+      return res.status(400).json({
+        message: 'Return date/time must be in the future.'
+      });
+    }
+
+    /*
+     * Return date must be after every possible handoff option.
+     * Otherwise the owner could select a handoff time after
+     * the requested return deadline.
+     */
+    const latestHandoff = new Date(
+      Math.max(...timestamps)
+    );
+
+    if (parsedReturnDate <= latestHandoff) {
+      return res.status(400).json({
+        message:
+          'Return date/time must be after all handoff options.'
+      });
+    }
+
+    const item = await Item.findById(itemId);
 
     if (!item) {
       return res.status(404).json({
@@ -132,358 +163,342 @@ const createBorrowRequest = async (req, res) => {
       });
     }
 
-    if (
-      item.owner.toString() ===
-      req.user.id
-    ) {
+    if (String(item.owner) === String(req.user.id)) {
       return res.status(400).json({
-        message:
-          'You cannot borrow your own item.'
+        message: 'You cannot borrow your own item.'
       });
     }
 
     if (item.status !== 'available') {
       return res.status(400).json({
-        message:
-          'This item is not available for borrowing.'
+        message: 'This item is not available for borrowing.'
       });
     }
 
     if (!item.pickupLocation) {
       return res.status(400).json({
-        message:
-          'This item does not have a pickup location yet.'
+        message: 'Pickup location is not available for this item.'
       });
     }
 
-    const existing =
-      await BorrowRequest.findOne({
-        item: itemId,
-        borrower: req.user.id,
-        status: {
-          $in: [
-            'pending',
-            'approved',
-            'return_pending',
-            'payment_pending',
-            'paid',
-            'handoff_pending',
-            'active',
-            'overdue',
-            'late_fee_pending',
-            'late_fee_paid'
-          ]
-        }
-      });
+    const existingRequest = await BorrowRequest.findOne({
+      item: item._id,
+      borrower: req.user.id,
+      status: {
+        $in: [
+          'pending',
+          'approved',
+          'return_pending',
+          'payment_pending',
+          'paid',
+          'handoff_pending',
+          'active',
+          'overdue',
+          'late_fee_pending',
+          'late_fee_paid'
+        ]
+      }
+    });
 
-    if (existing) {
+    if (existingRequest) {
       return res.status(400).json({
-        message:
-          'You already have an active request for this item.'
+        message: 'You already have an active request for this item.'
       });
     }
 
-    const price = item.isFree
+    const basePrice = item.isFree
       ? 0
       : Number(item.price || 0);
 
-    const borrowRequest =
-      await BorrowRequest.create({
-        item: itemId,
-        borrower: req.user.id,
-        lender: item.owner,
-        purpose: purpose.trim(),
+    const request = await BorrowRequest.create({
+      item: item._id,
+      borrower: req.user.id,
+      lender: item.owner,
+      purpose: purpose.trim(),
 
-        handoffOptions: parsedOptions,
+      basePrice,
 
-        basePrice: price,
+      lateFeePerDay: LATE_FEE_PER_DAY,
 
-        lateFeePerDay:
-          LATE_FEE_PER_DAY,
+      pickupLocation: snapshotPickup(item),
 
-        pickupLocation:
-          snapshotPickup(item),
+      handoffOptions: parsedOptions.map((date) => ({
+        dateTime: date
+      })),
 
-        paymentStatus:
-          price > 0
-            ? 'pending'
-            : 'not_required',
+      selectedHandoffAt: null,
 
-        status: 'pending'
-      });
+      returnDate: parsedReturnDate,
 
-    await createNotification(
-      item.owner,
-      'borrow_request',
-      `New borrow request for ${item.title}. The borrower has provided ${parsedOptions.length} possible handoff time(s).`,
-      borrowRequest._id
+      paymentStatus:
+        basePrice > 0
+          ? 'pending'
+          : 'not_required',
+
+      status: 'pending'
+    });
+
+    await createNotification({
+      recipient: item.owner,
+      type: 'borrow_request',
+      title: 'New borrow request',
+      message:
+        `A borrower requested "${item.title}" and provided ` +
+        `3 possible handoff times.`,
+      request
+    });
+
+    const populatedRequest = await populateRequest(
+      request._id
     );
 
-    res.status(201).json({
-      message:
-        'Borrow request sent successfully!',
-      borrowRequest
+    return res.status(201).json({
+      message: 'Borrow request submitted successfully.',
+      request: populatedRequest
     });
   } catch (error) {
-    console.error(
-      'Create borrow request error:',
-      error
-    );
+    console.error('createBorrowRequest error:', error);
 
-    res.status(400).json({
-      message:
-        error.message ||
-        'Could not create borrow request.'
+    return res.status(500).json({
+      message: 'Unable to create borrow request.'
     });
   }
 };
 
 /*
 |--------------------------------------------------------------------------
-| POPULATE
+| POPULATE REQUEST
 |--------------------------------------------------------------------------
 */
-
-const populateRequest = (query) =>
-  query
+const populateRequest = async (requestId) => {
+  return BorrowRequest.findById(requestId)
     .populate(
       'item',
-      'title category condition price isFree photos status pickupLocation detailedLocation pickupCoordinates'
-    )
-    .populate(
-      'lender',
-      'fullName college rating profilePicture'
+      'title category condition photos price isFree pickupLocation'
     )
     .populate(
       'borrower',
-      'fullName college rating profilePicture'
+      'fullName email profilePicture college'
+    )
+    .populate(
+      'lender',
+      'fullName email profilePicture college'
+    );
+};
+
+/*
+|--------------------------------------------------------------------------
+| GET MY REQUESTS
+|--------------------------------------------------------------------------
+*/
+const getMyRequests = async (req, res) => {
+  try {
+    const requests = await BorrowRequest.find({
+      borrower: req.user.id
+    })
+      .populate(
+        'item',
+        'title category condition photos price isFree pickupLocation'
+      )
+      .populate(
+        'lender',
+        'fullName profilePicture college'
+      )
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      requests
+    });
+  } catch (error) {
+    console.error('getMyRequests error:', error);
+
+    return res.status(500).json({
+      message: 'Unable to load borrow requests.'
+    });
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| GET INCOMING REQUESTS
+|--------------------------------------------------------------------------
+*/
+const getIncomingRequests = async (req, res) => {
+  try {
+    const requests = await BorrowRequest.find({
+      lender: req.user.id
+    })
+      .populate(
+        'item',
+        'title category condition photos price isFree pickupLocation'
+      )
+      .populate(
+        'borrower',
+        'fullName email profilePicture college'
+      )
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      requests
+    });
+  } catch (error) {
+    console.error('getIncomingRequests error:', error);
+
+    return res.status(500).json({
+      message: 'Unable to load incoming requests.'
+    });
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| GET SINGLE REQUEST
+|--------------------------------------------------------------------------
+*/
+const getRequest = async (req, res) => {
+  try {
+    const request = await populateRequest(req.params.id);
+
+    if (!request) {
+      return res.status(404).json({
+        message: 'Borrow request not found.'
+      });
+    }
+
+    const isBorrower =
+      String(request.borrower?._id) === String(req.user.id);
+
+    const isLender =
+      String(request.lender?._id) === String(req.user.id);
+
+    if (!isBorrower && !isLender) {
+      return res.status(403).json({
+        message: 'You are not allowed to view this request.'
+      });
+    }
+
+    return res.json({
+      request
+    });
+  } catch (error) {
+    console.error('getRequest error:', error);
+
+    return res.status(500).json({
+      message: 'Unable to load borrow request.'
+    });
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| APPROVE REQUEST
+|--------------------------------------------------------------------------
+| Owner selects one of the 3 handoff options.
+|
+| handoffOptionIndex:
+| 0 = first option
+| 1 = second option
+| 2 = third option
+|--------------------------------------------------------------------------
+*/
+const approveRequest = async (req, res) => {
+  try {
+    const { handoffOptionIndex } = req.body;
+
+    if (
+      handoffOptionIndex === undefined ||
+      !Number.isInteger(Number(handoffOptionIndex))
+    ) {
+      return res.status(400).json({
+        message: 'Please select a handoff option.'
+      });
+    }
+
+    const selectedIndex = Number(handoffOptionIndex);
+
+    if (selectedIndex < 0 || selectedIndex > 2) {
+      return res.status(400).json({
+        message: 'Invalid handoff option.'
+      });
+    }
+
+    const request = await BorrowRequest.findById(
+      req.params.id
     );
 
-/*
-|--------------------------------------------------------------------------
-| BORROWER REQUESTS
-|--------------------------------------------------------------------------
-*/
-
-const getMyRequests = async (
-  req,
-  res
-) => {
-  try {
-    const requests =
-      await populateRequest(
-        BorrowRequest.find({
-          borrower: req.user.id
-        })
-      ).sort({
-        createdAt: -1
-      });
-
-    res.json(requests);
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      message:
-        'Server error fetching requests.'
-    });
-  }
-};
-
-/*
-|--------------------------------------------------------------------------
-| OWNER REQUESTS
-|--------------------------------------------------------------------------
-*/
-
-const getIncomingRequests = async (
-  req,
-  res
-) => {
-  try {
-    const requests =
-      await populateRequest(
-        BorrowRequest.find({
-          lender: req.user.id
-        })
-      ).sort({
-        createdAt: -1
-      });
-
-    res.json(requests);
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      message:
-        'Server error fetching incoming requests.'
-    });
-  }
-};
-
-/*
-|--------------------------------------------------------------------------
-| SINGLE REQUEST
-|--------------------------------------------------------------------------
-*/
-
-const getRequest = async (
-  req,
-  res
-) => {
-  try {
-    const request =
-      await populateRequest(
-        BorrowRequest.findById(
-          req.params.id
-        )
-      );
-
     if (!request) {
       return res.status(404).json({
-        message:
-          'Borrow request not found.'
+        message: 'Borrow request not found.'
       });
     }
 
-    const allowedUsers = [
-      request.borrower?._id?.toString(),
-      request.lender?._id?.toString()
-    ];
-
-    if (
-      !allowedUsers.includes(req.user.id) &&
-      req.user.role !== 'admin'
-    ) {
+    if (String(request.lender) !== String(req.user.id)) {
       return res.status(403).json({
-        message: 'Not authorized.'
+        message: 'Only the item owner can approve this request.'
       });
     }
 
-    res.json(request);
-  } catch (error) {
-    console.error(error);
-
-    res.status(400).json({
-      message:
-        'Invalid borrow request ID.'
-    });
-  }
-};
-
-/*
-|--------------------------------------------------------------------------
-| OWNER ACCEPTS REQUEST
-|--------------------------------------------------------------------------
-|
-| Owner selects which borrower-provided
-| handoff option should be used.
-|
-| Body:
-| {
-|   handoffOptionIndex: 0
-| }
-|
-*/
-
-const approveRequest = async (
-  req,
-  res
-) => {
-  try {
-    const {
-      handoffOptionIndex
-    } = req.body;
-
-    const index =
-      Number(handoffOptionIndex);
-
-    if (
-      !Number.isInteger(index) ||
-      index < 0 ||
-      index > 2
-    ) {
+    if (request.status !== 'pending') {
       return res.status(400).json({
-        message:
-          'Please select a valid handoff option.'
+        message: 'This request is no longer pending.'
       });
     }
 
-    const request =
-      await BorrowRequest.findOne({
-        _id: req.params.id,
-        lender: req.user.id,
-        status: 'pending'
-      });
+    const selectedOption =
+      request.handoffOptions[selectedIndex];
 
-    if (!request) {
-      return res.status(404).json({
-        message:
-          'Pending request not found or already processed.'
-      });
-    }
-
-    if (
-      !request.handoffOptions?.[index]
-    ) {
+    if (!selectedOption?.dateTime) {
       return res.status(400).json({
-        message:
-          'Selected handoff option does not exist.'
+        message: 'Selected handoff option is invalid.'
       });
     }
 
     const selectedHandoffAt =
-      request.handoffOptions[index]
-        .dateTime;
+      new Date(selectedOption.dateTime);
+
+    if (selectedHandoffAt <= new Date()) {
+      return res.status(400).json({
+        message: 'Selected handoff time has already passed.'
+      });
+    }
 
     if (
-      selectedHandoffAt <= new Date()
+      !request.returnDate ||
+      request.returnDate <= selectedHandoffAt
     ) {
       return res.status(400).json({
         message:
-          'The selected handoff time has already passed.'
+          'Return date/time must be after the selected handoff time.'
       });
     }
 
-    const item =
-      await Item.findOneAndUpdate(
-        {
-          _id: request.item,
-          status: 'available'
-        },
-        {
-          $set: {
-            status: 'reserved',
-            updatedAt: new Date()
-          }
-        },
-        {
-          new: true
-        }
-      );
+    const item = await Item.findById(request.item);
 
     if (!item) {
-      return res.status(409).json({
-        message:
-          'This item is no longer available.'
+      return res.status(404).json({
+        message: 'Item not found.'
       });
     }
 
-    request.selectedHandoffAt =
-      selectedHandoffAt;
+    if (item.status !== 'available') {
+      return res.status(400).json({
+        message: 'This item is no longer available.'
+      });
+    }
 
-    request.approvedAt =
-      new Date();
+    item.status = 'reserved';
+    await item.save();
 
-    /*
-     * Borrower must now decide
-     * the return date/time.
-     */
+    request.selectedHandoffAt = selectedHandoffAt;
+
+    request.approvedAt = new Date();
+
+    request.handoffStatus = 'not_ready';
+
     request.status =
-      'return_pending';
-
-    request.handoffStatus =
-      'not_ready';
+      request.basePrice > 0
+        ? 'return_pending'
+        : 'return_pending';
 
     request.paymentStatus =
       request.basePrice > 0
@@ -493,15 +508,12 @@ const approveRequest = async (
     await request.save();
 
     /*
-     * Deny other pending requests
-     * for the same item.
+     * Deny all other pending requests for the same item.
      */
     await BorrowRequest.updateMany(
       {
         item: request.item,
-        _id: {
-          $ne: request._id
-        },
+        _id: { $ne: request._id },
         status: 'pending'
       },
       {
@@ -511,252 +523,224 @@ const approveRequest = async (
       }
     );
 
-    await createNotification(
-      request.borrower,
-      'borrow_approved',
-      `Your request for ${item.title} was accepted. Handoff is scheduled for ${selectedHandoffAt.toLocaleString('en-IN')}. Please choose your return date and time.`,
+    await createNotification({
+      recipient: request.borrower,
+      type: 'borrow_approved',
+      title: 'Borrow request approved',
+      message:
+        `Your borrow request was approved. ` +
+        `The owner selected ${selectedHandoffAt.toLocaleString(
+          'en-IN'
+        )} for handoff.`,
+      request
+    });
+
+    const populatedRequest = await populateRequest(
       request._id
     );
 
-    res.json({
-      message:
-        'Request accepted. Borrower must now choose the return date and time.',
-      request
+    return res.json({
+      message: 'Borrow request approved.',
+      request: populatedRequest
     });
   } catch (error) {
-    console.error(
-      'Approve request error:',
-      error
-    );
+    console.error('approveRequest error:', error);
 
-    res.status(500).json({
-      message:
-        'Server error approving request.'
+    return res.status(500).json({
+      message: 'Unable to approve borrow request.'
     });
   }
 };
 
 /*
 |--------------------------------------------------------------------------
-| BORROWER CONFIRMS RETURN DATE/TIME
+| CONFIRM / UPDATE RETURN DATE
 |--------------------------------------------------------------------------
 */
-
-const confirmReturnDate = async (
-  req,
-  res
-) => {
+const confirmReturnDate = async (req, res) => {
   try {
-    const {
-      returnDate
-    } = req.body;
+    const { returnDate } = req.body;
 
     if (!returnDate) {
       return res.status(400).json({
-        message:
-          'Return date and time are required.'
+        message: 'Return date/time is required.'
       });
     }
 
-    const parsedReturnDate =
-      new Date(returnDate);
-
-    if (
-      Number.isNaN(
-        parsedReturnDate.getTime()
-      )
-    ) {
-      return res.status(400).json({
-        message:
-          'Invalid return date and time.'
-      });
-    }
-
-    const request =
-      await BorrowRequest.findOne({
-        _id: req.params.id,
-        borrower: req.user.id,
-        status: 'return_pending'
-      });
+    const request = await BorrowRequest.findById(
+      req.params.id
+    );
 
     if (!request) {
       return res.status(404).json({
-        message:
-          'This request is not waiting for a return date.'
+        message: 'Borrow request not found.'
       });
     }
 
-    if (
-      !request.selectedHandoffAt
-    ) {
+    if (String(request.borrower) !== String(req.user.id)) {
+      return res.status(403).json({
+        message: 'Only the borrower can set the return date.'
+      });
+    }
+
+    if (request.status !== 'return_pending') {
+      return res.status(400).json({
+        message: 'Return date cannot be changed at this stage.'
+      });
+    }
+
+    if (!request.selectedHandoffAt) {
+      return res.status(400).json({
+        message: 'Handoff time has not been selected yet.'
+      });
+    }
+
+    const parsedReturnDate = new Date(returnDate);
+
+    if (Number.isNaN(parsedReturnDate.getTime())) {
+      return res.status(400).json({
+        message: 'Invalid return date/time.'
+      });
+    }
+
+    if (parsedReturnDate <= request.selectedHandoffAt) {
       return res.status(400).json({
         message:
-          'Handoff time has not been confirmed.'
+          'Return date/time must be after the selected handoff time.'
       });
     }
 
-    /*
-     * Return must happen after handoff.
-     */
-    if (
-      parsedReturnDate <=
-      request.selectedHandoffAt
-    ) {
-      return res.status(400).json({
-        message:
-          'Return date/time must be after the handoff date/time.'
-      });
-    }
-
-    request.returnDate =
-      parsedReturnDate;
+    request.returnDate = parsedReturnDate;
 
     if (request.basePrice > 0) {
-      request.status =
-        'payment_pending';
-
-      request.paymentStatus =
-        'pending';
+      request.status = 'payment_pending';
+      request.paymentStatus = 'pending';
     } else {
-      request.status =
-        'handoff_pending';
-
-      request.paymentStatus =
-        'not_required';
-
-      request.handoffStatus =
-        'ready';
+      request.status = 'handoff_pending';
+      request.paymentStatus = 'not_required';
+      request.handoffStatus = 'ready';
     }
 
     await request.save();
 
-    await createNotification(
-      request.lender,
-      'return_date_confirmed',
-      `The borrower selected ${parsedReturnDate.toLocaleString('en-IN')} as the return date/time.`,
-      request._id
-    );
-
-    await createNotification(
-      request.borrower,
-      'return_date_confirmed',
-      request.basePrice > 0
-        ? 'Return date confirmed. Complete the payment before the handoff.'
-        : 'Return date confirmed. Your handoff is ready.',
-      request._id
-    );
-
-    res.json({
+    await createNotification({
+      recipient: request.lender,
+      type: 'return_date_confirmed',
+      title: 'Return date confirmed',
       message:
-        request.basePrice > 0
-          ? 'Return date confirmed. Payment is now available.'
-          : 'Return date confirmed. Handoff is ready.',
+        `The borrower confirmed the return date as ` +
+        `${parsedReturnDate.toLocaleString('en-IN')}.`,
       request
     });
-  } catch (error) {
-    console.error(
-      'Confirm return date error:',
-      error
-    );
 
-    res.status(500).json({
-      message:
-        'Could not confirm return date.'
+    return res.json({
+      message: 'Return date confirmed.',
+      request: await populateRequest(request._id)
+    });
+  } catch (error) {
+    console.error('confirmReturnDate error:', error);
+
+    return res.status(500).json({
+      message: 'Unable to confirm return date.'
     });
   }
 };
 
 /*
 |--------------------------------------------------------------------------
-| OWNER DENIES REQUEST
+| DENY REQUEST
 |--------------------------------------------------------------------------
 */
-
-const denyRequest = async (
-  req,
-  res
-) => {
+const denyRequest = async (req, res) => {
   try {
-    const request =
-      await BorrowRequest.findOneAndUpdate(
-        {
-          _id: req.params.id,
-          lender: req.user.id,
-          status: 'pending'
-        },
-        {
-          $set: {
-            status: 'denied'
-          }
-        },
-        {
-          new: true
-        }
-      );
+    const request = await BorrowRequest.findById(
+      req.params.id
+    );
 
     if (!request) {
       return res.status(404).json({
-        message:
-          'Pending request not found or already processed.'
+        message: 'Borrow request not found.'
       });
     }
 
-    await createNotification(
-      request.borrower,
-      'borrow_denied',
-      'Your borrow request was denied.',
-      request._id
-    );
+    if (String(request.lender) !== String(req.user.id)) {
+      return res.status(403).json({
+        message: 'Only the owner can deny this request.'
+      });
+    }
 
-    res.json({
-      message:
-        'Request denied.',
+    if (request.status !== 'pending') {
+      return res.status(400).json({
+        message: 'This request is no longer pending.'
+      });
+    }
+
+    request.status = 'denied';
+
+    await request.save();
+
+    await createNotification({
+      recipient: request.borrower,
+      type: 'borrow_denied',
+      title: 'Borrow request denied',
+      message: 'The owner denied your borrow request.',
       request
     });
-  } catch (error) {
-    console.error(error);
 
-    res.status(500).json({
-      message:
-        'Server error denying request.'
+    return res.json({
+      message: 'Borrow request denied.'
+    });
+  } catch (error) {
+    console.error('denyRequest error:', error);
+
+    return res.status(500).json({
+      message: 'Unable to deny borrow request.'
     });
   }
 };
 
 /*
 |--------------------------------------------------------------------------
-| CREATE HANDOFF QR
+| CREATE HANDOFF VERIFICATION
 |--------------------------------------------------------------------------
 */
-
-const createHandoff = async (
-  req,
-  res
-) => {
+const createHandoff = async (req, res) => {
   try {
-    const request =
-      await BorrowRequest.findOne({
-        _id: req.params.id,
-        lender: req.user.id,
-        status: {
-          $in: [
-            'handoff_pending',
-            'paid'
-          ]
-        }
-      });
+    const request = await BorrowRequest.findById(
+      req.params.id
+    );
 
     if (!request) {
       return res.status(404).json({
-        message:
-          'This request is not ready for handoff.'
+        message: 'Borrow request not found.'
+      });
+    }
+
+    if (String(request.lender) !== String(req.user.id)) {
+      return res.status(403).json({
+        message: 'Only the owner can create handoff verification.'
+      });
+    }
+
+    if (
+      !['handoff_pending', 'paid'].includes(
+        request.status
+      )
+    ) {
+      return res.status(400).json({
+        message: 'Handoff is not available at this stage.'
+      });
+    }
+
+    if (!request.selectedHandoffAt) {
+      return res.status(400).json({
+        message: 'No handoff time has been selected.'
       });
     }
 
     if (!request.returnDate) {
       return res.status(400).json({
-        message:
-          'Borrower has not selected the return date/time yet.'
+        message: 'Return date has not been confirmed.'
       });
     }
 
@@ -765,67 +749,51 @@ const createHandoff = async (
       request.paymentStatus !== 'captured'
     ) {
       return res.status(400).json({
-        message:
-          'Payment must be completed before handoff.'
+        message: 'Payment must be completed before handoff.'
       });
     }
 
-    const token =
-      randomToken();
+    const token = randomToken();
+    const code = randomCode();
 
-    const code =
-      randomCode();
+    const expiresAt = new Date(
+      Date.now() + 15 * 60 * 1000
+    );
 
-    request.handoffTokenHash =
-      hash(token);
+    request.handoffTokenHash = hash(token);
+    request.handoffTokenExpiresAt = expiresAt;
 
-    request.handoffTokenExpiresAt =
-      new Date(
-        Date.now() +
-          15 * 60 * 1000
-      );
+    request.handoffCodeHash = hash(code);
+    request.handoffCodeExpiresAt = expiresAt;
 
-    request.handoffCodeHash =
-      hash(code);
-
-    request.handoffCodeExpiresAt =
-      new Date(
-        Date.now() +
-          15 * 60 * 1000
-      );
-
-    request.handoffStatus =
-      'ready';
-
-    request.status =
-      'handoff_pending';
+    request.handoffStatus = 'ready';
+    request.status = 'handoff_pending';
 
     await request.save();
 
-    await createNotification(
-      request.borrower,
-      'handoff_ready',
-      `Handoff verification is ready for ${request.selectedHandoffAt.toLocaleString('en-IN')}.`,
-      request._id
-    );
+    await createNotification({
+      recipient: request.borrower,
+      type: 'handoff_ready',
+      title: 'Handoff verification ready',
+      message:
+        `Handoff is scheduled for ${request.selectedHandoffAt.toLocaleString(
+          'en-IN'
+        )}.`,
+      request
+    });
 
-    res.json({
+    return res.json({
+      message: 'Handoff verification created.',
       token,
       code,
-      expiresAt:
-        request.handoffTokenExpiresAt,
-      handoffAt:
-        request.selectedHandoffAt
+      expiresAt,
+      handoffAt: request.selectedHandoffAt
     });
   } catch (error) {
-    console.error(
-      'Create handoff error:',
-      error
-    );
+    console.error('createHandoff error:', error);
 
-    res.status(500).json({
-      message:
-        'Could not create handoff verification.'
+    return res.status(500).json({
+      message: 'Unable to create handoff verification.'
     });
   }
 };
@@ -835,235 +803,171 @@ const createHandoff = async (
 | VERIFY HANDOFF
 |--------------------------------------------------------------------------
 */
-
-const verifyHandoff = async (
-  req,
-  res
-) => {
+const verifyHandoff = async (req, res) => {
   try {
-    const {
-      token,
-      code
-    } = req.body;
+    const { token, code } = req.body;
 
-    const request =
-      await BorrowRequest.findById(
-        req.params.id
-      );
+    const request = await BorrowRequest.findById(
+      req.params.id
+    );
 
     if (!request) {
       return res.status(404).json({
-        message:
-          'Borrow request not found.'
+        message: 'Borrow request not found.'
       });
     }
 
-    if (
-      request.borrower.toString() !==
-      req.user.id
-    ) {
+    if (String(request.borrower) !== String(req.user.id)) {
       return res.status(403).json({
-        message:
-          'Only the borrower can complete pickup verification.'
+        message: 'Only the borrower can verify the handoff.'
       });
     }
+
+    if (request.status !== 'handoff_pending') {
+      return res.status(400).json({
+        message: 'Handoff verification is not available.'
+      });
+    }
+
+    let valid = false;
 
     if (
-      request.status !==
-      'handoff_pending'
-    ) {
-      return res.status(400).json({
-        message:
-          'This transaction is not ready for handoff.'
-      });
-    }
-
-    const validToken =
       token &&
-      request.handoffTokenExpiresAt >
-        new Date() &&
-      request.handoffTokenHash ===
-        hash(token);
-
-    const validCode =
-      code &&
-      request.handoffCodeExpiresAt >
-        new Date() &&
-      request.handoffCodeHash ===
-        hash(code);
-
-    if (!validToken && !validCode) {
-      return res.status(400).json({
-        message:
-          'Invalid or expired handoff code.'
-      });
+      request.handoffTokenHash &&
+      request.handoffTokenExpiresAt > new Date() &&
+      hash(token) === request.handoffTokenHash
+    ) {
+      valid = true;
     }
 
     if (
-      request.handoffStatus ===
-      'verified'
+      code &&
+      request.handoffCodeHash &&
+      request.handoffCodeExpiresAt > new Date() &&
+      hash(code) === request.handoffCodeHash
     ) {
+      valid = true;
+    }
+
+    if (!valid) {
       return res.status(400).json({
-        message:
-          'Handoff is already verified.'
+        message: 'Invalid or expired handoff code.'
       });
     }
 
-    request.handoffStatus =
-      'verified';
+    request.handoffStatus = 'verified';
+    request.handoffVerifiedAt = new Date();
 
-    request.handoffVerifiedAt =
-      new Date();
+    request.handoffTokenHash = null;
+    request.handoffTokenExpiresAt = null;
+    request.handoffCodeHash = null;
+    request.handoffCodeExpiresAt = null;
 
-    request.status =
-      'active';
-
-    request.handoffTokenHash =
-      null;
-
-    request.handoffCodeHash =
-      null;
-
-    request.handoffTokenExpiresAt =
-      null;
-
-    request.handoffCodeExpiresAt =
-      null;
+    request.status = 'active';
 
     await request.save();
 
-    await Item.findOneAndUpdate(
-      {
-        _id: request.item,
-        status: 'reserved'
-      },
-      {
-        $set: {
-          status: 'lent',
-          updatedAt: new Date()
-        }
-      }
-    );
+    const item = await Item.findById(request.item);
 
-    await createNotification(
-      request.lender,
-      'handoff_verified',
-      'Handoff verified. The resource is now LENT.',
-      request._id
-    );
+    if (item && item.status === 'reserved') {
+      item.status = 'lent';
+      await item.save();
+    }
 
-    await createNotification(
-      request.borrower,
-      'handoff_verified',
-      `Handoff completed. Please return the item by ${request.returnDate.toLocaleString('en-IN')}.`,
-      request._id
-    );
-
-    res.json({
+    await createNotification({
+      recipient: request.lender,
+      type: 'handoff_verified',
+      title: 'Item handed over',
       message:
-        'Handoff verified successfully. The item is now lent.'
+        'The handoff was successfully verified. The item is now lent.',
+      request
+    });
+
+    return res.json({
+      message: 'Handoff verified successfully.',
+      request: await populateRequest(request._id)
     });
   } catch (error) {
-    console.error(
-      'Verify handoff error:',
-      error
-    );
+    console.error('verifyHandoff error:', error);
 
-    res.status(500).json({
-      message:
-        'Could not verify handoff.'
+    return res.status(500).json({
+      message: 'Unable to verify handoff.'
     });
   }
 };
 
 /*
 |--------------------------------------------------------------------------
-| CREATE RETURN QR
+| CREATE RETURN VERIFICATION
 |--------------------------------------------------------------------------
 */
-
-const createReturnVerification = async (
-  req,
-  res
-) => {
+const createReturnVerification = async (req, res) => {
   try {
-    const request =
-      await BorrowRequest.findOne({
-        _id: req.params.id,
-        borrower: req.user.id,
-        status: {
-          $in: [
-            'active',
-            'overdue',
-            'late_fee_paid'
-          ]
-        }
-      });
+    const request = await BorrowRequest.findById(
+      req.params.id
+    );
 
     if (!request) {
       return res.status(404).json({
-        message:
-          'Active borrowing not found.'
+        message: 'Borrow request not found.'
       });
     }
 
-    /*
-     * Late fee must be paid before
-     * final return verification.
-     */
+    if (String(request.borrower) !== String(req.user.id)) {
+      return res.status(403).json({
+        message:
+          'Only the borrower can create return verification.'
+      });
+    }
+
     if (
-      request.status === 'overdue' &&
-      request.lateFeeAmount > 0 &&
-      request.lateFeePaymentStatus !==
-        'captured'
+      !['active', 'overdue', 'late_fee_paid'].includes(
+        request.status
+      )
     ) {
       return res.status(400).json({
-        message:
-          `Please pay the late fee of ₹${request.lateFeeAmount} before returning the item.`
+        message: 'Return verification is not available.'
       });
     }
 
-    const token =
-      randomToken();
+    if (
+      request.status === 'overdue' &&
+      request.lateFeePaymentStatus !== 'captured'
+    ) {
+      return res.status(400).json({
+        message: 'Late fee must be paid before return.'
+      });
+    }
 
-    const code =
-      randomCode();
+    const token = randomToken();
+    const code = randomCode();
 
-    request.returnTokenHash =
-      hash(token);
+    const expiresAt = new Date(
+      Date.now() + 30 * 60 * 1000
+    );
 
-    request.returnTokenExpiresAt =
-      new Date(
-        Date.now() +
-          30 * 60 * 1000
-      );
+    request.returnTokenHash = hash(token);
+    request.returnTokenExpiresAt = expiresAt;
 
-    request.returnCodeHash =
-      hash(code);
-
-    request.returnCodeExpiresAt =
-      new Date(
-        Date.now() +
-          30 * 60 * 1000
-      );
+    request.returnCodeHash = hash(code);
+    request.returnCodeExpiresAt = expiresAt;
 
     await request.save();
 
-    res.json({
-      token,
-      code,
-      expiresAt:
-        request.returnTokenExpiresAt
+    return res.json({
+      message: 'Return verification created.',
+      returnToken: token,
+      returnCode: code,
+      expiresAt
     });
   } catch (error) {
     console.error(
-      'Create return verification error:',
+      'createReturnVerification error:',
       error
     );
 
-    res.status(500).json({
-      message:
-        'Could not create return verification.'
+    return res.status(500).json({
+      message: 'Unable to create return verification.'
     });
   }
 };
@@ -1073,159 +977,108 @@ const createReturnVerification = async (
 | VERIFY RETURN
 |--------------------------------------------------------------------------
 */
-
-const verifyReturn = async (
-  req,
-  res
-) => {
+const verifyReturn = async (req, res) => {
   try {
-    const {
-      token,
-      code
-    } = req.body;
+    const { returnToken, returnCode } = req.body;
 
-    const request =
-      await BorrowRequest.findById(
-        req.params.id
-      );
+    const request = await BorrowRequest.findById(
+      req.params.id
+    );
 
     if (!request) {
       return res.status(404).json({
-        message:
-          'Borrow request not found.'
+        message: 'Borrow request not found.'
       });
     }
 
-    if (
-      request.lender.toString() !==
-      req.user.id
-    ) {
+    if (String(request.lender) !== String(req.user.id)) {
       return res.status(403).json({
-        message:
-          'Only the lender can verify the return.'
+        message: 'Only the owner can verify the return.'
       });
     }
 
     if (
-      ![
-        'active',
-        'overdue',
-        'late_fee_paid'
-      ].includes(request.status)
+      !['active', 'overdue', 'late_fee_paid'].includes(
+        request.status
+      )
     ) {
       return res.status(400).json({
-        message:
-          'This transaction is not ready for return.'
+        message: 'Return verification is not available.'
       });
     }
 
     if (
       request.status === 'overdue' &&
-      request.lateFeeAmount > 0 &&
-      request.lateFeePaymentStatus !==
-        'captured'
+      request.lateFeePaymentStatus !== 'captured'
     ) {
       return res.status(400).json({
-        message:
-          'Late fee must be paid before return verification.'
+        message: 'Late fee must be paid before return.'
       });
     }
 
-    const validToken =
-      token &&
-      request.returnTokenExpiresAt >
-        new Date() &&
-      request.returnTokenHash ===
-        hash(token);
+    let valid = false;
 
-    const validCode =
-      code &&
-      request.returnCodeExpiresAt >
-        new Date() &&
-      request.returnCodeHash ===
-        hash(code);
+    if (
+      returnToken &&
+      request.returnTokenHash &&
+      request.returnTokenExpiresAt > new Date() &&
+      hash(returnToken) === request.returnTokenHash
+    ) {
+      valid = true;
+    }
 
-    if (!validToken && !validCode) {
+    if (
+      returnCode &&
+      request.returnCodeHash &&
+      request.returnCodeExpiresAt > new Date() &&
+      hash(returnCode) === request.returnCodeHash
+    ) {
+      valid = true;
+    }
+
+    if (!valid) {
       return res.status(400).json({
-        message:
-          'Invalid or expired return code.'
+        message: 'Invalid or expired return code.'
       });
     }
 
-    const item =
-      await Item.findOneAndUpdate(
-        {
-          _id: request.item,
-          status: 'lent'
-        },
-        {
-          $set: {
-            status: 'available',
-            updatedAt: new Date()
-          }
-        },
-        {
-          new: true
-        }
-      );
+    request.returnVerifiedAt = new Date();
+    request.actualReturnDate = new Date();
 
-    if (!item) {
-      return res.status(409).json({
-        message:
-          'Item is not currently marked as lent.'
-      });
-    }
+    request.returnTokenHash = null;
+    request.returnTokenExpiresAt = null;
+    request.returnCodeHash = null;
+    request.returnCodeExpiresAt = null;
 
-    request.status =
-      'returned';
-
-    request.actualReturnDate =
-      new Date();
-
-    request.returnVerifiedAt =
-      new Date();
-
-    request.returnTokenHash =
-      null;
-
-    request.returnCodeHash =
-      null;
-
-    request.returnTokenExpiresAt =
-      null;
-
-    request.returnCodeExpiresAt =
-      null;
+    request.status = 'returned';
 
     await request.save();
 
-    await createNotification(
-      request.borrower,
-      'borrow_returned',
-      `${item.title} has been returned successfully. Transaction completed.`,
-      request._id
-    );
+    const item = await Item.findById(request.item);
 
-    await createNotification(
-      request.lender,
-      'borrow_returned',
-      `${item.title} has been returned and is available again.`,
-      request._id
-    );
+    if (item && item.status === 'lent') {
+      item.status = 'available';
+      await item.save();
+    }
 
-    res.json({
+    await createNotification({
+      recipient: request.borrower,
+      type: 'return_verified',
+      title: 'Item returned',
       message:
-        'Return verified successfully. Transaction completed.'
+        'The owner verified the return successfully.',
+      request
+    });
+
+    return res.json({
+      message: 'Return verified successfully.',
+      request: await populateRequest(request._id)
     });
   } catch (error) {
-    console.error(
-      'Verify return error:',
-      error
-    );
+    console.error('verifyReturn error:', error);
 
-    res.status(500).json({
-      message:
-        'Could not verify return.'
+    return res.status(500).json({
+      message: 'Unable to verify return.'
     });
   }
 };
@@ -1235,14 +1088,10 @@ const verifyReturn = async (
 | MANUAL RETURN DISABLED
 |--------------------------------------------------------------------------
 */
-
-const markReturned = async (
-  req,
-  res
-) => {
+const markReturned = async (req, res) => {
   return res.status(400).json({
     message:
-      'Manual return is disabled. Use QR/code return verification.'
+      'Manual return is disabled. Use QR/code verification.'
   });
 };
 
@@ -1252,8 +1101,8 @@ module.exports = {
   getIncomingRequests,
   getRequest,
   approveRequest,
-  denyRequest,
   confirmReturnDate,
+  denyRequest,
   createHandoff,
   verifyHandoff,
   createReturnVerification,

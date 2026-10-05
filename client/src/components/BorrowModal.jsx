@@ -1,131 +1,270 @@
-// src/components/BorrowModal.jsx
-import { useState } from 'react';
+import React, { useState } from 'react';
 import api from '../api';
-import './BorrowModal.css';
-import PickupMap from './PickupMap';
 
-function BorrowModal({ item, onClose, onSuccess }) {
+const BorrowModal = ({ item, onClose, onSuccess }) => {
   const [purpose, setPurpose] = useState('');
+
+  const [handoffOptions, setHandoffOptions] = useState([
+    '',
+    '',
+    ''
+  ]);
+
   const [returnDate, setReturnDate] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  // Get today's date for min date
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const minReturnDate = tomorrow.toISOString().split('T')[0];
+  const updateHandoffOption = (index, value) => {
+    setHandoffOptions((prev) => {
+      const updated = [...prev];
+      updated[index] = value;
+      return updated;
+    });
+  };
 
-  const handleSubmit = async (e) => {
+  const submitRequest = async (e) => {
     e.preventDefault();
-    setError('');
 
-    if (!purpose || !returnDate) {
-      setError('Please fill in all fields');
+    setError('');
+    setMessage('');
+
+    if (!purpose.trim()) {
+      setError('Please enter the purpose of borrowing.');
       return;
     }
 
-    setLoading(true);
+    if (handoffOptions.some((option) => !option)) {
+      setError(
+        'Please select all 3 handoff date/time options.'
+      );
+      return;
+    }
+
+    if (!returnDate) {
+      setError('Please select the return date/time.');
+      return;
+    }
+
+    const optionTimes = handoffOptions.map((value) =>
+      new Date(value).getTime()
+    );
+
+    if (new Set(optionTimes).size !== 3) {
+      setError(
+        'All 3 handoff options must be different.'
+      );
+      return;
+    }
+
+    const now = Date.now();
+
+    if (optionTimes.some((time) => time <= now)) {
+      setError(
+        'All handoff options must be in the future.'
+      );
+      return;
+    }
+
+    const returnTime = new Date(returnDate).getTime();
+
+    if (returnTime <= now) {
+      setError(
+        'Return date/time must be in the future.'
+      );
+      return;
+    }
+
+    if (returnTime <= Math.max(...optionTimes)) {
+      setError(
+        'Return date/time must be after all 3 handoff options.'
+      );
+      return;
+    }
+
     try {
-      const token = localStorage.getItem('token');
+      setLoading(true);
+
       const response = await api.post(
         '/borrow',
         {
           itemId: item._id,
-          purpose,
+          purpose: purpose.trim(),
+
+          handoffOptions: handoffOptions.map(
+            (dateTime) => ({
+              dateTime
+            })
+          ),
+
           returnDate
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
+        }
       );
-      onSuccess(response.data.borrowRequest);
+
+      setMessage(
+        response.data?.message ||
+          'Borrow request submitted successfully.'
+      );
+
+      if (onSuccess) {
+        onSuccess(response.data?.request);
+      }
+
+      setTimeout(() => {
+        onClose();
+      }, 800);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to send request');
+      setError(
+        err.response?.data?.message ||
+          'Unable to submit borrow request.'
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" onClick={e => e.stopPropagation()}>
+    <div className="borrow-modal-overlay">
+      <div className="borrow-modal">
+        <div className="borrow-modal-header">
+          <div>
+            <h2>Request to Borrow</h2>
 
-        {/* Header */}
-        <div className="modal-header">
-          <h2>Request to Borrow</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+            {item?.title && (
+              <p>{item.title}</p>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+          >
+            ×
+          </button>
         </div>
 
-        {/* Item Info */}
-        <div className="modal-item-info">
-          <div className="modal-item-icon">📦</div>
-          <div>
-            <p className="modal-item-title">{item.title}</p>
-            <p className="modal-item-meta">
-              {item.condition} • {item.isFree ? 'Free' : `₹${item.price}`}
+        <form onSubmit={submitRequest}>
+          <div className="form-group">
+            <label>
+              Purpose of borrowing
+            </label>
+
+            <textarea
+              value={purpose}
+              onChange={(e) =>
+                setPurpose(e.target.value)
+              }
+              placeholder="Why do you need this item?"
+              maxLength={1000}
+              rows={4}
+              disabled={loading}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>
+              Choose 3 possible handoff times
+            </label>
+
+            <p className="form-help">
+              The owner will select one of these
+              options.
+            </p>
+
+            {handoffOptions.map(
+              (option, index) => (
+                <div
+                  className="handoff-option"
+                  key={index}
+                >
+                  <label>
+                    Option {index + 1}
+                  </label>
+
+                  <input
+                    type="datetime-local"
+                    value={option}
+                    onChange={(e) =>
+                      updateHandoffOption(
+                        index,
+                        e.target.value
+                      )
+                    }
+                    disabled={loading}
+                  />
+                </div>
+              )
+            )}
+          </div>
+
+          <div className="form-group">
+            <label>
+              Expected return date & time
+            </label>
+
+            <input
+              type="datetime-local"
+              value={returnDate}
+              onChange={(e) =>
+                setReturnDate(e.target.value)
+              }
+              disabled={loading}
+            />
+
+            <p className="form-help">
+              The return time must be after all
+              three handoff options.
             </p>
           </div>
-        </div>
 
-        <div className="modal-form-group">
-          <label>Fixed Price</label>
-          <p><strong>{item.isFree ? 'FREE' : `₹${item.price}`}</strong> — this amount is fixed by the listing owner and is recorded on your request.</p>
-          <label>Fixed Pickup Location</label>
-          <p>{item.pickupLocation}</p>
-          {item.pickupCoordinates?.latitude != null && <PickupMap value={item.pickupCoordinates} readOnly />}
-        </div>
+          {item?.pickupLocation && (
+            <div className="borrow-location">
+              <strong>Pickup location</strong>
 
-        {error && <div className="modal-error">{error}</div>}
+              <p>
+                {item.pickupLocation.label ||
+                  item.pickupLocation.address ||
+                  'Pickup location provided by owner'}
+              </p>
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit}>
-          {/* Purpose */}
-          <div className="modal-form-group">
-            <label>Purpose of Borrowing</label>
-            <textarea
-              placeholder="e.g. I'm preparing for the upcoming midterms and need this for practice problems."
-              value={purpose}
-              onChange={e => setPurpose(e.target.value)}
-              rows={4}
-              required
-            />
-          </div>
+          {error && (
+            <div className="borrow-error">
+              {error}
+            </div>
+          )}
 
-          {/* Return Date */}
-          <div className="modal-form-group">
-            <label>Select Return Date</label>
-            <input
-              type="date"
-              value={returnDate}
-              onChange={e => setReturnDate(e.target.value)}
-              min={minReturnDate}
-              required
-            />
-          </div>
+          {message && (
+            <div className="borrow-success">
+              {message}
+            </div>
+          )}
 
-          {/* Borrowing Duration info */}
-          <div className="modal-info">
-            <p>📋 By sending this request, you agree to return the item in the same condition. The item owner will be notified and can approve or deny your request.</p>
-          </div>
-
-          {/* Buttons */}
-          <div className="modal-actions">
+          <div className="borrow-modal-actions">
             <button
               type="button"
-              className="btn-cancel"
               onClick={onClose}
-            >
-              Cancel Request
-            </button>
-            <button
-              type="submit"
-              className="btn-send"
               disabled={loading}
             >
-              {loading ? 'Sending...' : '📤 Send Request'}
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={loading}
+            >
+              {loading
+                ? 'Sending...'
+                : 'Send Borrow Request'}
             </button>
           </div>
         </form>
       </div>
     </div>
   );
-}
+};
 
 export default BorrowModal;

@@ -18,8 +18,7 @@ function HeroSection() {
           lab gear, and academic tools safely and affordably.
         </p>
         <div className="hero-buttons">
-          <button className="btn-primary">Start Sharing</button>
-          <button className="btn-secondary">Browse Catalog</button>
+          <Link to="/login"><button className="btn-primary">Start Sharing</button></Link>
         </div>
       </div>
 
