@@ -3,6 +3,7 @@ const Item = require('../models/Item');
 const BorrowRequest = require('../models/BorrowRequest');
 const Notification = require('../models/Notification');
 const Message = require('../models/Message');
+const { removeResourcesByUploader } = require('./digitalController');
 
 const getAllItems = async (req, res) => {
   try {
@@ -129,7 +130,8 @@ const deleteUser = async (req, res) => {
     await Item.deleteMany({ owner: userId });
     await BorrowRequest.deleteMany({ borrower: userId });
     await BorrowRequest.deleteMany({ lender: userId });
-    
+    await removeResourcesByUploader(userId);
+
     await User.findByIdAndDelete(userId);
     res.status(200).json({ message: 'User deleted successfully' });
   } catch (error) {

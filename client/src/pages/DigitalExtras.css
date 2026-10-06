@@ -1,0 +1,103 @@
+/* Additions for the Digital Hub (kept separate so DigitalDashboard.css stays untouched). All classes prefixed dd-. */
+
+.digital-card { cursor: default; display: flex; flex-direction: column; }
+.digital-card-body { display: flex; flex-direction: column; flex: 1; }
+.digital-card-desc { font-size: .8rem; color: #636e72; line-height: 1.45; margin: -4px 0 10px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dd-card-meta { font-size: .76rem; color: #8a979c; margin-bottom: 12px; }
+.dd-card-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 14px; }
+
+.dd-download {
+  flex: 1; padding: 9px 12px; border: none; border-radius: 8px; cursor: pointer;
+  background: linear-gradient(135deg, #6c5ce7, #a29bfe); color: #fff;
+  font: inherit; font-size: .85rem; font-weight: 700; transition: box-shadow .2s;
+}
+.dd-download:hover:not(:disabled) { box-shadow: 0 6px 18px rgba(108, 92, 231, .35); }
+.dd-download:disabled { opacity: .65; cursor: wait; }
+.dd-delete {
+  width: 38px; border: 1.5px solid #fab1a0; border-radius: 8px; background: #fff;
+  cursor: pointer; font-size: .95rem;
+}
+.dd-delete:hover { background: #ffeaea; }
+.dd-download:focus-visible, .dd-delete:focus-visible, .dd-toggle button:focus-visible,
+.dd-btn:focus-visible, .dd-close:focus-visible, .dd-drop:focus-visible { outline: 3px solid #c9c2ff; outline-offset: 2px; }
+
+/* my-uploads toggle + states */
+.dd-toggle { display: inline-flex; gap: 4px; padding: 4px; background: #fff; border: 1.5px solid #e8e0f0; border-radius: 999px; }
+.dd-toggle button {
+  padding: 6px 14px; border: none; border-radius: 999px; background: none; cursor: pointer;
+  font: inherit; font-size: .82rem; font-weight: 600; color: #636e72;
+}
+.dd-toggle button.is-active { background: #6c5ce7; color: #fff; }
+
+.dd-state { grid-column: 1 / -1; text-align: center; padding: 56px 16px; color: #636e72; display: grid; gap: 14px; justify-items: center; }
+.dd-state p { max-width: 38ch; line-height: 1.5; }
+.dd-state--error { color: #b32525; }
+.dd-more { display: block; margin: 24px auto 8px; padding: 10px 28px; border-radius: 999px; border: 1.5px solid #6c5ce7;
+  background: #fff; color: #6c5ce7; font: inherit; font-weight: 700; cursor: pointer; }
+.dd-more:hover:not(:disabled) { background: #6c5ce7; color: #fff; }
+.dd-more:disabled { opacity: .6; cursor: wait; }
+
+/* toast */
+.dd-toast {
+  position: fixed; top: 20px; right: 20px; z-index: 2000; max-width: min(360px, calc(100vw - 40px));
+  padding: 12px 18px; border-radius: 10px; font-size: .9rem; font-weight: 600;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .14);
+}
+.dd-toast--success { background: #e6f9ef; color: #146c43; border: 1px solid #b7ebcf; }
+.dd-toast--error { background: #fdeaea; color: #a61b1b; border: 1px solid #f5c2c2; }
+
+/* modal */
+.dd-overlay { position: fixed; inset: 0; z-index: 1000; padding: 16px; background: rgba(20, 16, 40, .5);
+  display: grid; place-items: center; overflow-y: auto; }
+.dd-dialog { width: 100%; max-width: 560px; max-height: 94vh; overflow-y: auto; background: #fff;
+  border-radius: 16px; padding: 26px; box-shadow: 0 20px 60px rgba(0, 0, 0, .25); color: #2d3436; }
+.dd-dialog-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
+.dd-dialog-head h2 { font-size: 1.3rem; font-weight: 800; }
+.dd-dialog-head p { color: #636e72; font-size: .9rem; margin-top: 2px; line-height: 1.45; }
+.dd-close { width: 34px; height: 34px; flex-shrink: 0; border: none; border-radius: 50%; background: #f3f0ff;
+  font-size: 1.3rem; line-height: 1; cursor: pointer; color: #6c5ce7; }
+.dd-close:disabled { opacity: .5; cursor: not-allowed; }
+
+.dd-drop {
+  display: grid; gap: 4px; justify-items: center; text-align: center; padding: 26px 16px; margin-bottom: 18px;
+  border: 2px dashed #cfc7f5; border-radius: 12px; background: #faf9ff; cursor: pointer; transition: border-color .15s, background .15s;
+}
+.dd-drop strong { font-size: .95rem; overflow-wrap: anywhere; }
+.dd-drop span { font-size: .82rem; color: #8a979c; }
+.dd-drop:hover, .dd-drop.is-dragging { border-color: #6c5ce7; background: #f3f0ff; }
+.dd-drop.has-file { border-style: solid; border-color: #a29bfe; }
+
+.dd-field { margin-bottom: 16px; min-width: 0; }
+.dd-field label { display: block; font-size: .88rem; font-weight: 700; margin-bottom: 6px; }
+.dd-field label span { font-weight: 500; color: #8a979c; }
+.dd-field input, .dd-field select, .dd-field textarea {
+  width: 100%; padding: 11px 13px; border: 1.5px solid #e8e0f0; border-radius: 8px; background: #fff;
+  font: inherit; color: #2d3436; outline: none; box-sizing: border-box;
+}
+.dd-field textarea { resize: vertical; }
+.dd-field input:focus, .dd-field select:focus, .dd-field textarea:focus { border-color: #6c5ce7; box-shadow: 0 0 0 3px #ebe7ff; }
+.dd-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; }
+
+.dd-check { display: flex; gap: 10px; align-items: flex-start; font-size: .84rem; color: #4b585d; line-height: 1.45; margin-bottom: 16px; cursor: pointer; }
+.dd-check input { margin-top: 3px; accent-color: #6c5ce7; width: 16px; height: 16px; flex-shrink: 0; }
+
+.dd-error { background: #fdeaea; border: 1px solid #f5c2c2; color: #a61b1b; padding: 10px 14px; border-radius: 8px; font-size: .88rem; margin-bottom: 14px; }
+.dd-progress { position: relative; height: 26px; border-radius: 8px; background: #f3f0ff; overflow: hidden; margin-bottom: 14px; }
+.dd-progress div { position: absolute; inset: 0 auto 0 0; background: #c9c2ff; transition: width .15s; }
+.dd-progress span { position: relative; display: block; text-align: center; line-height: 26px; font-size: .8rem; font-weight: 700; color: #4b3fc4; }
+
+.dd-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.dd-btn { padding: 11px 22px; border-radius: 9px; border: 1.5px solid transparent; font: inherit; font-weight: 700; cursor: pointer; }
+.dd-btn:disabled { opacity: .6; cursor: not-allowed; }
+.dd-btn--primary { background: linear-gradient(135deg, #6c5ce7, #a29bfe); color: #fff; }
+.dd-btn--ghost { background: #fff; border-color: #e8e0f0; color: #636e72; }
+.dd-btn--ghost:hover:not(:disabled) { border-color: #6c5ce7; color: #6c5ce7; }
+
+@media (max-width: 520px) {
+  .dd-dialog { padding: 20px; }
+  .dd-row { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dd-progress div { transition: none; }
+}

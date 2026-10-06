@@ -17,7 +17,7 @@ function ClickPicker({ onPick }) {
 export default function PickupMap({ value, onChange, readOnly = false }) {
   const center = value?.latitude != null && value?.longitude != null
     ? [value.latitude, value.longitude]
-    : [19.8762, 75.3433];
+    : [19.880010,75.356947];
   const openMaps = value?.latitude != null && value?.longitude != null
     ? `https://www.google.com/maps/search/?api=1&query=${value.latitude},${value.longitude}`
     : null;

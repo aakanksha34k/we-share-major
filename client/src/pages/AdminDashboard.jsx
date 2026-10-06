@@ -5,17 +5,6 @@ import './AdminDashboard.css';
 
 const API = '/admin';
 
-// Dummy digital resources (matching DigitalDashboard.jsx)
-const dummyDigitalResources = [
-  { _id: 'dr1', title: 'Data Structures & Algorithms — Complete Notes', type: 'Notes', subject: 'Computer Science', uploader: 'Ankit S.', downloads: 342, status: 'approved' },
-  { _id: 'dr2', title: 'Organic Chemistry Morrison & Boyd (PDF)', type: 'PDFs', subject: 'Chemistry', uploader: 'Priya M.', downloads: 189, status: 'approved' },
-  { _id: 'dr3', title: 'Engineering Mathematics — Kreyszig 10th Ed', type: 'E-Books', subject: 'Mathematics', uploader: 'Rahul K.', downloads: 521, status: 'approved' },
-  { _id: 'dr4', title: 'Physics PYQs 2020–2025 (Solved)', type: 'Question Papers', subject: 'Physics', uploader: 'Sneha T.', downloads: 410, status: 'pending' },
-  { _id: 'dr5', title: 'Operating Systems — Galvin Notes + Diagrams', type: 'Notes', subject: 'Computer Science', uploader: 'Vikram D.', downloads: 278, status: 'approved' },
-  { _id: 'dr6', title: 'Microeconomics Mankiw PDF (8th Edition)', type: 'PDFs', subject: 'Economics', uploader: 'Neha R.', downloads: 156, status: 'approved' },
-  { _id: 'dr7', title: 'Digital Electronics — Morris Mano (E-Book)', type: 'E-Books', subject: 'Engineering', uploader: 'Arjun P.', downloads: 324, status: 'pending' },
-  { _id: 'dr8', title: 'Biology Mid-Sem Question Papers 2024', type: 'Question Papers', subject: 'Biology', uploader: 'Meera J.', downloads: 97, status: 'approved' },
-];
 
 function AdminDashboard() {
   const [stats, setStats] = useState(null);
@@ -24,8 +13,8 @@ function AdminDashboard() {
   const [pendingItems, setPendingItems] = useState([]);
   const [allRequests, setAllRequests] = useState([]);
   const [allMessages, setAllMessages] = useState([]);
-  const [digitalResources] = useState(dummyDigitalResources);
-  const [activeTab, setActiveTab] = useState('overview');
+const [digitalResources, setDigitalResources] = useState([]);
+const [digitalTotal, setDigitalTotal] = useState(0);  const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
@@ -59,15 +48,18 @@ function AdminDashboard() {
 
         const config = getConfig();
 
-        const [statsRes, usersRes, itemsRes, pendingRes, requestsRes, messagesRes] = await Promise.all([
+        const [statsRes, usersRes, itemsRes, pendingRes, requestsRes, messagesRes, digitalRes] = await Promise.all([
           api.get(`${API}/stats`, config),
           api.get(`${API}/users`, config),
           api.get(`${API}/items`, config),
           api.get(`${API}/items/pending`, config),
           api.get(`${API}/requests`, config),
           api.get(`${API}/messages`, config),
+          api.get('/digital', { params: { limit: 100, sort: 'newest' } }),
         ]);
 
+        setDigitalResources(digitalRes.data.resources);
+        setDigitalTotal(digitalRes.data.total);
         setStats(statsRes.data);
         setAllUsers(usersRes.data);
         setAllItems(itemsRes.data);
@@ -157,6 +149,18 @@ function AdminDashboard() {
     }
   };
 
+  const handleDeleteDigital = async (id) => {
+  if (!window.confirm('Delete this resource and its PDF file?')) return;
+  try {
+    await api.delete(`/digital/${id}`, getConfig());
+    setDigitalResources(prev => prev.filter(r => r._id !== id));
+    setDigitalTotal(t => Math.max(0, t - 1));
+    showToast('Resource deleted successfully');
+  } catch (err) {
+    showToast(err.response?.data?.message || 'Failed to delete resource', 'error');
+  }
+};
+
   // ── Announcement ──
   const handleSendAnnouncement = async () => {
     if (!announcement.trim()) return;
@@ -191,10 +195,13 @@ function AdminDashboard() {
   });
 
   const filteredDigital = digitalResources.filter(r => {
-    const matchesSearch = r.title?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || r.status === filterStatus;
-    return matchesSearch && matchesFilter;
-  });
+  const q = searchQuery.toLowerCase();
+  return (
+    r.title?.toLowerCase().includes(q) ||
+    r.subject?.toLowerCase().includes(q) ||
+    r.uploader?.fullName?.toLowerCase().includes(q)
+  );
+});
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -280,8 +287,7 @@ function AdminDashboard() {
               {[
                 { label: 'Total Users', value: stats?.totalUsers || 0, icon: '👥', color: '#3b82f6' },
                 { label: 'Physical Items', value: stats?.totalItems || 0, icon: '📦', color: '#00b894' },
-                { label: 'Digital Resources', value: digitalResources.length, icon: '📄', color: '#6c5ce7' },
-                { label: 'Borrow Requests', value: stats?.totalBorrowRequests || 0, icon: '🔄', color: '#f39c12' },
+{ label: 'Digital Resources', value: digitalTotal, icon: '📄', color: '#6c5ce7' },                { label: 'Borrow Requests', value: stats?.totalBorrowRequests || 0, icon: '🔄', color: '#f39c12' },
                 { label: 'Active Borrows', value: stats?.activeBorrows || 0, icon: '📋', color: '#e17055' },
                 { label: 'Pending Approvals', value: stats?.pendingItems || 0, icon: '⏳', color: '#fdcb6e' },
                 { label: 'Banned Users', value: stats?.bannedUsers || 0, icon: '🚫', color: '#d63031' },
@@ -467,59 +473,47 @@ function AdminDashboard() {
 
         {/* ═══ DIGITAL RESOURCES TAB ═══ */}
         {activeTab === 'digital' && (
-          <div className="adm-tab-content">
-            <div className="adm-page-header">
-              <h1>Digital Resources</h1>
-              <p>{filteredDigital.length} resources found</p>
-            </div>
+  <div className="adm-tab-content">
+    <div className="adm-page-header">
+      <h1>Digital Resources</h1>
+      <p>{filteredDigital.length} of {digitalTotal} resources shown</p>
+    </div>
 
-            <div className="adm-toolbar">
-              <div className="adm-search">
-                <span>🔍</span>
-                <input placeholder="Search resources..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-              </div>
-              <div className="adm-filter-pills">
-                {['all', 'approved', 'pending'].map(s => (
-                  <button key={s} className={`adm-pill ${filterStatus === s ? 'active' : ''}`} onClick={() => setFilterStatus(s)}>
-                    {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
+    <div className="adm-toolbar">
+      <div className="adm-search">
+        <span>🔍</span>
+        <input placeholder="Search by title, subject or uploader..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+      </div>
+    </div>
 
-            <div className="adm-card">
-              <table className="adm-table">
-                <thead>
-                  <tr><th>Title</th><th>Type</th><th>Subject</th><th>Uploader</th><th>Downloads</th><th>Status</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                  {filteredDigital.map(r => (
-                    <tr key={r._id}>
-                      <td className="adm-td-bold">{r.title}</td>
-                      <td><span className="adm-badge adm-badge--info">{r.type}</span></td>
-                      <td>{r.subject}</td>
-                      <td>{r.uploader}</td>
-                      <td>⬇ {r.downloads}</td>
-                      <td><span className={`adm-badge adm-badge--${r.status}`}>{r.status}</span></td>
-                      <td>
-                        <div className="adm-action-group">
-                          {r.status === 'pending' && (
-                            <>
-                              <button className="adm-btn adm-btn--approve" title="Approve">✅</button>
-                              <button className="adm-btn adm-btn--reject" title="Reject">❌</button>
-                            </>
-                          )}
-                          <button className="adm-btn adm-btn--delete" title="Delete">🗑️</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {filteredDigital.length === 0 && <p className="adm-empty">No resources match your filters</p>}
-            </div>
-          </div>
-        )}
+    <div className="adm-card">
+      <table className="adm-table">
+        <thead>
+          <tr><th>Title</th><th>Type</th><th>Subject</th><th>Uploader</th><th>Downloads</th><th>Uploaded</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          {filteredDigital.map(r => (
+            <tr key={r._id}>
+              <td className="adm-td-bold adm-td-truncate" title={r.title}>{r.title}</td>
+              <td><span className="adm-badge adm-badge--info">{r.type}</span></td>
+              <td>{r.subject}</td>
+              <td>{r.uploader?.fullName || 'Deleted user'}</td>
+              <td>⬇ {r.downloads}</td>
+              <td>{new Date(r.createdAt).toLocaleDateString()}</td>
+              <td>
+                <div className="adm-action-group">
+                  <button className="adm-btn adm-btn--delete" title="Delete" onClick={() => handleDeleteDigital(r._id)}>🗑️</button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {filteredDigital.length === 0 && <p className="adm-empty">No resources match your search</p>}
+    </div>
+  </div>
+)}
+
 
         {/* ═══ PENDING APPROVAL TAB ═══ */}
         {activeTab === 'pending' && (
