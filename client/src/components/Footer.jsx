@@ -10,7 +10,7 @@ function Footer() {
           <h2>
             <Link to="/" style={{ color: 'inherit', textDecoration: 'none' }}>🔗 We Share</Link>
           </h2>
-          <p>The campus platform for college students to trade textbooks, lab gear, and academic tools safely and affordably.</p>
+          <p>The campus platform for college students to trade textbooks, lab gear, and academic tools safely and affordably with each other.</p>
         </div>
 
         <div className="footer-links">
