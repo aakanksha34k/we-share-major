@@ -68,7 +68,6 @@ function StepOne({ formData, updateForm }) {
           <li>Be specific with book editions and ISBN numbers</li>
           <li>Mention any highlighting or notes inside the pages</li>
           <li>For lab kits, list all included components</li>
-          <li>Specify if you're open to trades for other academic resources</li>
         </ul>
         <div className="safe-trading">
           <h4>🛡️ Safe Trading</h4>

@@ -50,11 +50,6 @@ const itemSchema = new mongoose.Schema(
       default: false
     },
 
-    openToTrades: {
-      type: Boolean,
-      default: false
-    },
-
     pickupLocation: {
       type: String,
       trim: true,

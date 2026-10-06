@@ -143,7 +143,7 @@ const getAdminStats = async (req, res) => {
     const totalUsers = await User.countDocuments();
     const totalItems = await Item.countDocuments();
     const totalBorrowRequests = await BorrowRequest.countDocuments();
-    const activeBorrows = await BorrowRequest.countDocuments({ status: 'approved' });
+    const activeBorrows = await BorrowRequest.countDocuments({ status: { $in: ['active', 'overdue', 'late_fee_pending', 'late_fee_paid'] } });
     const pendingItems = await Item.countDocuments({ status: 'pending' });
     const bannedUsers = await User.countDocuments({ isBanned: true });
     const totalMessages = await Message.countDocuments();

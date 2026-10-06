@@ -61,7 +61,6 @@ function ItemDetailPage() {
               {item.condition}
             </span>
             {item.isFree && <span className="badge free">FREE</span>}
-            {item.openToTrades && <span className="badge trade">OPEN TO TRADE</span>}
           </div>
         </div>
 

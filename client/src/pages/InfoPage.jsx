@@ -21,7 +21,7 @@ const PAGES = {
         'When someone requests it, open “My dashboard” → “Incoming requests” and review it.',
         'At the meeting, generate a pickup QR for the borrower. When it comes back, scan their return QR.'
       ] },
-      { h: 'I forgot my password', p: ['Password reset by email is not available yet. If you signed up with Google, use “Continue with Google” on the login page. Otherwise contact support.'] },
+      { h: 'On the login page tap “Forgot password?”, enter your Gmail and follow the link we email you.', p: ['Password reset by email is not available yet. If you signed up with Google, use “Continue with Google” on the login page. Otherwise contact support.'] },
       { h: 'Late returns', p: [`A late fee of ₹${LATE_FEE} per day applies after the return time. You pay it in the app before the owner can close the return.`] }
     ]
   },

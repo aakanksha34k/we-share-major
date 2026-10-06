@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
+import AppHeader from './AppHeader';
 
 function isTokenExpired(token) {
   try {
@@ -33,5 +34,10 @@ function ProtectedRoute({ children, adminOnly = false }) {
 
   return children;
 }
-
+return (
+  <>
+    <AppHeader />
+    {children}
+  </>
+);
 export default ProtectedRoute;

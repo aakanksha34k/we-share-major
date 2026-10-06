@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { applyLateFee } = require('../utils/lateFee');
 
 const BorrowRequest = require('../models/BorrowRequest');
 const Item = require('../models/Item');
@@ -579,13 +580,35 @@ const verifyHandoff = async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired handoff code.' });
     }
 
-    request.handoffStatus = 'verified';
-    request.handoffVerifiedAt = new Date();
-    request.handoffTokenHash = null;
-    request.handoffTokenExpiresAt = null;
-    request.handoffCodeHash = null;
-    request.handoffCodeExpiresAt = null;
-    request.status = 'active';
+const handoffAt = new Date();
+
+// Keep the borrowing period the borrower asked for, but start it from the REAL handoff.
+const periodMs = Math.max(
+  new Date(request.returnDate) - new Date(request.selectedHandoffAt),
+  60 * 60 * 1000 // at least 1 hour
+);
+
+request.plannedReturnDate = request.returnDate;
+request.returnDate = new Date(handoffAt.getTime() + periodMs);
+request.reminderTomorrowSent = false;
+request.reminderTodaySent = false;
+request.overdueNotificationSent = false;
+
+request.handoffStatus = 'verified';
+request.handoffVerifiedAt = handoffAt;
+request.handoffTokenHash = null;
+request.handoffTokenExpiresAt = null;
+request.handoffCodeHash = null;
+request.handoffCodeExpiresAt = null;
+request.status = 'active';
+
+message: `The handoff was verified. Return is due ${fmt(request.returnDate)}.`,
+await createNotification({
+  recipient: request.borrower,
+  type: 'handoff_verified',
+  message: `You have the item. Return it by ${fmt(request.returnDate)} to avoid a late fee of ₹${request.lateFeePerDay} per 24 hours.`,
+  request
+});
 
     await request.save();
 
@@ -633,6 +656,8 @@ const createReturnVerification = async (req, res) => {
     if (!RETURNABLE.includes(request.status)) {
       return res.status(400).json({ message: 'Return verification is not available.' });
     }
+    applyLateFee(request);
+await request.save();
     if (request.status === 'overdue' && request.lateFeePaymentStatus !== 'captured') {
       return res.status(400).json({ message: 'Late fee must be paid before return.' });
     }
@@ -673,8 +698,10 @@ const verifyReturn = async (req, res) => {
       return res.status(403).json({ message: 'Only the owner can verify the return.' });
     }
     if (!RETURNABLE.includes(request.status)) {
-      return res.status(400).json({ message: 'Return verification is not available.' });
+      return res.status(400).json({ message: 'turn verification is not availabRele.' });
     }
+    applyLateFee(request);
+await request.save();
     if (request.status === 'overdue' && request.lateFeePaymentStatus !== 'captured') {
       return res.status(400).json({ message: 'Late fee must be paid before return.' });
     }

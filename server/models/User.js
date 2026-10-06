@@ -18,7 +18,9 @@ const userSchema = new mongoose.Schema({
   emailVerifiedAt: { type: Date, default: null },
   verificationTokenHash: { type: String, default: null },
   verificationExpiresAt: { type: Date, default: null },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  resetTokenHash: { type: String, default: null },
+resetExpiresAt: { type: Date, default: null }
 });
 
 module.exports = mongoose.model('User', userSchema);

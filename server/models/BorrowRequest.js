@@ -10,24 +10,51 @@ const handoffOptionSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const pickupLocationSchema = new mongoose.Schema(
+  {
+    label: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    address: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    latitude: {
+      type: Number,
+      default: null
+    },
+    longitude: {
+      type: Number,
+      default: null
+    }
+  },
+  { _id: false }
+);
+
 const borrowRequestSchema = new mongoose.Schema(
   {
     item: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Item',
-      required: true
+      required: true,
+      index: true
     },
 
     borrower: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true
+      required: true,
+      index: true
     },
 
     lender: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true
+      required: true,
+      index: true
     },
 
     purpose: {
@@ -37,7 +64,6 @@ const borrowRequestSchema = new mongoose.Schema(
       maxlength: 1000
     },
 
-    // Commercial terms are frozen when the request is created.
     basePrice: {
       type: Number,
       min: 0,
@@ -53,36 +79,23 @@ const borrowRequestSchema = new mongoose.Schema(
     },
 
     pickupLocation: {
-      label: {
-        type: String,
-        default: ''
-      },
+      type: pickupLocationSchema,
+      default: null
+    },
 
-      address: {
-        type: String,
-        default: ''
-      },
-
-      latitude: {
-        type: Number,
-        default: null
-      },
-
-      longitude: {
-        type: Number,
-        default: null
+    // Borrower proposes exactly 3 possible handoff times.
+    handoffOptions: {
+      type: [handoffOptionSchema],
+      required: true,
+      validate: {
+        validator: function (value) {
+          return Array.isArray(value) && value.length === 3;
+        },
+        message: 'Exactly 3 handoff options are required.'
       }
     },
 
-    /*
-     * Borrower proposes up to 3 handoff options.
-     * Owner chooses one when accepting the request.
-     */
-    handoffOptions: {
-      type: [handoffOptionSchema],
-      default: []
-    },
-
+    // Owner chooses one of the three options.
     selectedHandoffAt: {
       type: Date,
       default: null
@@ -98,15 +111,16 @@ const borrowRequestSchema = new mongoose.Schema(
       default: null
     },
 
-    /*
-     * Return date is NOT known when the borrower first requests the item.
-     * Borrower chooses it after owner acceptance.
-     */
+    // Borrower's expected return date/time.
     returnDate: {
       type: Date,
       default: null
     },
 
+    // What the borrower originally asked for. `returnDate` becomes the real due time at handoff.
+plannedReturnDate: { type: Date, default: null },
+
+    // Filled automatically when lender verifies the return.
     actualReturnDate: {
       type: Date,
       default: null
@@ -128,12 +142,11 @@ const borrowRequestSchema = new mongoose.Schema(
         'returned',
         'denied'
       ],
-      default: 'pending'
+      default: 'pending',
+      index: true
     },
 
-    /*
-     * Handoff QR/code
-     */
+    // Handoff verification
     handoffStatus: {
       type: String,
       enum: ['not_ready', 'ready', 'verified'],
@@ -165,9 +178,7 @@ const borrowRequestSchema = new mongoose.Schema(
       default: null
     },
 
-    /*
-     * Return QR/code
-     */
+    // Return verification
     returnTokenHash: {
       type: String,
       default: null
@@ -193,18 +204,11 @@ const borrowRequestSchema = new mongoose.Schema(
       default: null
     },
 
-    /*
-     * Main Razorpay payment
-     */
+    // Main payment
     paymentStatus: {
       type: String,
-      enum: [
-        'not_required',
-        'pending',
-        'captured',
-        'failed'
-      ],
-      default: 'pending'
+      enum: ['not_required', 'pending', 'captured', 'failed'],
+      default: 'not_required'
     },
 
     razorpayOrderId: {
@@ -222,16 +226,8 @@ const borrowRequestSchema = new mongoose.Schema(
       default: null
     },
 
-    /*
-     * Late fee
-     */
+    // Late fee
     lateFeeAmount: {
-      type: Number,
-      min: 0,
-      default: 0
-    },
-
-    lateFeePaidAmount: {
       type: Number,
       min: 0,
       default: 0
@@ -239,11 +235,7 @@ const borrowRequestSchema = new mongoose.Schema(
 
     lateFeePaymentStatus: {
       type: String,
-      enum: [
-        'not_required',
-        'pending',
-        'captured'
-      ],
+      enum: ['not_required', 'pending', 'captured', 'failed'],
       default: 'not_required'
     },
 
@@ -257,9 +249,7 @@ const borrowRequestSchema = new mongoose.Schema(
       default: null
     },
 
-    /*
-     * Notifications/reminders
-     */
+    // Notifications
     reminderTomorrowSent: {
       type: Boolean,
       default: false
@@ -280,27 +270,9 @@ const borrowRequestSchema = new mongoose.Schema(
   }
 );
 
-borrowRequestSchema.index({
-  borrower: 1,
-  status: 1
-});
+borrowRequestSchema.index({ borrower: 1, status: 1 });
+borrowRequestSchema.index({ lender: 1, status: 1 });
+borrowRequestSchema.index({ returnDate: 1, status: 1 });
+borrowRequestSchema.index({ selectedHandoffAt: 1, status: 1 });
 
-borrowRequestSchema.index({
-  lender: 1,
-  status: 1
-});
-
-borrowRequestSchema.index({
-  returnDate: 1,
-  status: 1
-});
-
-borrowRequestSchema.index({
-  selectedHandoffAt: 1,
-  status: 1
-});
-
-module.exports = mongoose.model(
-  'BorrowRequest',
-  borrowRequestSchema
-);
+module.exports = mongoose.model('BorrowRequest', borrowRequestSchema);

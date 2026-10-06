@@ -17,14 +17,14 @@ function ClickPicker({ onPick }) {
 export default function PickupMap({ value, onChange, readOnly = false }) {
   const center = value?.latitude != null && value?.longitude != null
     ? [value.latitude, value.longitude]
-    : [20.5937, 78.9629];
+    : [19.8762, 75.3433];
   const openMaps = value?.latitude != null && value?.longitude != null
     ? `https://www.google.com/maps/search/?api=1&query=${value.latitude},${value.longitude}`
     : null;
 
   return (
     <div>
-      <MapContainer center={center} zoom={value?.latitude != null ? 17 : 5} style={{ height: 280, width: '100%', borderRadius: 12 }} scrollWheelZoom={!readOnly}>
+      <MapContainer center={center} zoom={value?.latitude != null ? 17 : 13} style={{ height: 280, width: '100%', borderRadius: 12 }} scrollWheelZoom={!readOnly}>
         <TileLayer
           attribution='&copy; OpenStreetMap contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

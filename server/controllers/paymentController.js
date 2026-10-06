@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const BorrowRequest = require('../models/BorrowRequest');
 const Payment = require('../models/Payment');
 const Notification = require('../models/Notification');
+const { applyLateFee } = require('../utils/lateFee');
 
 const razorpayBase = 'https://api.razorpay.com/v1';
 const razorpayAuth = () => 'Basic ' + Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
@@ -71,12 +72,16 @@ const createLateFeeOrder = async (req, res) => {
   try {
     const request = await BorrowRequest.findOne({ _id: req.params.id, borrower: req.user.id });
     if (!request) return res.status(404).json({ message: 'Borrow request not found' });
-    if (!['overdue', 'late_fee_pending'].includes(request.status)) return res.status(400).json({ message: 'Late fee is not currently required.' });
-    if (!request.lateFeeAmount || request.lateFeeAmount <= 0) return res.status(400).json({ message: 'No late fee is due.' });
-    if (request.lateFeePaymentStatus === 'captured') return res.status(400).json({ message: 'Late fee is already paid.' });
+applyLateFee(request); // live figure, not the hourly snapshot
+if (!['overdue', 'late_fee_pending'].includes(request.status)) return res.status(400).json({ message: 'Late fee is not currently required.' });
+if (!request.lateFeeAmount || request.lateFeeAmount <= 0) return res.status(400).json({ message: 'No late fee is due.' });
 
-    if (request.lateFeeRazorpayOrderId) return res.json({ orderId: request.lateFeeRazorpayOrderId, amount: request.lateFeeAmount * 100, currency: 'INR', keyId: process.env.RAZORPAY_KEY_ID });
-    const order = await razorpayRequest('/orders', { method: 'POST', body: JSON.stringify({ amount: Math.round(request.lateFeeAmount * 100), currency: 'INR', receipt: `WS-LATE-${request._id}`, notes: { borrowRequestId: request._id.toString(), type: 'late_fee' } }) });
+    // Always a fresh order, so the amount matches today's outstanding fee.
+    const order = await razorpayRequest('/orders', { method: 'POST', body: JSON.stringify({
+      amount: Math.round(request.lateFeeAmount * 100), currency: 'INR',
+      receipt: `WS-LATE-${request._id}-${Date.now()}`.slice(0, 40),
+      notes: { borrowRequestId: request._id.toString(), type: 'late_fee' } }) });
+
     request.lateFeeRazorpayOrderId = order.id;
     request.lateFeePaymentStatus = 'pending';
     request.status = 'late_fee_pending';
@@ -94,57 +99,27 @@ const verifyLateFee = async (req, res) => {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
     const request = await BorrowRequest.findOne({ _id: req.params.id, borrower: req.user.id });
     if (!request) return res.status(404).json({ message: 'Borrow request not found' });
-    if (request.lateFeeRazorpayOrderId !== razorpay_order_id) return res.status(400).json({ message: 'Late-fee order mismatch' });
+    if (!razorpay_order_id || request.lateFeeRazorpayOrderId !== razorpay_order_id) return res.status(400).json({ message: 'Late-fee order mismatch' });
+
     const expected = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update(`${razorpay_order_id}|${razorpay_payment_id}`).digest('hex');
     if (expected !== razorpay_signature) return res.status(400).json({ message: 'Invalid payment signature' });
-    const paymentDetails = await razorpayRequest(`/payments/${razorpay_payment_id}`);
-    if (paymentDetails.order_id !== razorpay_order_id) return res.status(400).json({ message: 'Payment order verification failed' });
-    if (!['captured', 'authorized'].includes(paymentDetails.status)) return res.status(400).json({ message: `Payment is not successful (${paymentDetails.status}).` });
-    if (paymentDetails.status === 'authorized') await razorpayRequest(`/payments/${razorpay_payment_id}/capture`, { method: 'POST', body: JSON.stringify({ amount: paymentDetails.amount, currency: paymentDetails.currency }) });
+
+    const details = await razorpayRequest(`/payments/${razorpay_payment_id}`);
+    if (details.order_id !== razorpay_order_id) return res.status(400).json({ message: 'Payment order verification failed' });
+    if (!['captured', 'authorized'].includes(details.status)) return res.status(400).json({ message: `Payment is not successful (${details.status}).` });
+    if (details.status === 'authorized') await razorpayRequest(`/payments/${razorpay_payment_id}/capture`, { method: 'POST', body: JSON.stringify({ amount: details.amount, currency: details.currency }) });
+
+    const paid = Number(details.amount) / 100;         // what was really charged
+    request.lateFeePaidAmount = Number(request.lateFeePaidAmount || 0) + paid;
+    request.lateFeeAmount = Math.max(0, Number(request.lateFeeAmount || 0) - paid);
     request.lateFeePaymentStatus = 'captured';
     request.lateFeeRazorpayPaymentId = razorpay_payment_id;
-    request.lateFeePaidAmount = Number(request.lateFeePaidAmount || 0) + Number(request.lateFeeAmount || 0);
-    const paidLateFee =
-  Number(request.lateFeeAmount || 0);
+    request.lateFeeRazorpayOrderId = null;              // this order is spent; blocks replay
+    request.status = 'late_fee_paid';
+    await request.save();
 
-request.lateFeePaymentStatus =
-  'captured';
-
-request.lateFeeRazorpayPaymentId =
-  razorpay_payment_id;
-
-request.lateFeePaidAmount =
-  Number(request.lateFeePaidAmount || 0) +
-  paidLateFee;
-
-request.lateFeeAmount = 0;
-
-request.status =
-  'late_fee_paid';
-
-await request.save();
-
-await Payment.findOneAndUpdate(
-  {
-    razorpayOrderId:
-      razorpay_order_id
-  },
-  {
-    $set: {
-      razorpayPaymentId:
-        razorpay_payment_id,
-      status: 'captured'
-    }
-  }
-);
-
-await Notification.create({
-  recipient: request.lender,
-  type: 'late_fee_paid',
-  message:
-    `Late fee of ₹${paidLateFee} was paid.`,
-  relatedId: request._id
-});
+    await Payment.findOneAndUpdate({ razorpayOrderId: razorpay_order_id }, { $set: { razorpayPaymentId: razorpay_payment_id, status: 'captured' } });
+    await Notification.create({ recipient: request.lender, type: 'late_fee_paid', message: `Late fee of ₹${paid} was paid.`, relatedId: request._id });
     res.json({ message: 'Late fee payment verified successfully.' });
   } catch (error) {
     console.error('Verify late fee:', error);

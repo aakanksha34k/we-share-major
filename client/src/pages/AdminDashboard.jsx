@@ -705,7 +705,6 @@ function AdminDashboard() {
                 <div className="adm-modal-row"><span>Category</span><p>{selectedItem.category}</p></div>
                 <div className="adm-modal-row"><span>Condition</span><p>{selectedItem.condition}</p></div>
                 <div className="adm-modal-row"><span>Price</span><p>{selectedItem.isFree ? 'Free' : `₹${selectedItem.price}`}</p></div>
-                <div className="adm-modal-row"><span>Trades</span><p>{selectedItem.openToTrades ? 'Yes' : 'No'}</p></div>
                 <div className="adm-modal-row"><span>Location</span><p>{selectedItem.pickupLocation || 'N/A'}</p></div>
                 <div className="adm-modal-row"><span>Owner</span><p>{selectedItem.owner?.fullName || 'Unknown'}</p></div>
                 <div className="adm-modal-row"><span>Status</span><span className={`adm-badge adm-badge--${selectedItem.status}`}>{selectedItem.status}</span></div>

@@ -577,8 +577,7 @@ function BorrowWorkflowPage() {
                 <h2>Late fee</h2>
                 <p className="bw-amount">₹{lateFeeDue}</p>
                 <p className="bw-muted">
-                  The return time has passed. The fee is ₹{request.lateFeePerDay} per day.
-                </p>
+The return time has passed. The fee is ₹{request.lateFeePerDay} for every 24 hours (or part of it) after the due time.                </p>
                 <div className="bw-actions">
                   <button className="bw-btn bw-btn--primary" onClick={payLateFee} disabled={busy}>
                     {busy ? 'Opening payment…' : 'Pay late fee'}
@@ -670,7 +669,7 @@ function BorrowWorkflowPage() {
               <dl className="bw-details">
                 <div><dt>Price</dt><dd>{formatMoney(request.basePrice)}</dd></div>
                 {request.basePrice > 0 && (
-                  <div><dt>Late fee</dt><dd>₹{request.lateFeePerDay} / day</dd></div>
+                  <div><dt>Late fee</dt><dd>₹{request.lateFeePerDay} / 24 hrs</dd></div>
                 )}
                 <div>
                   <dt>Handoff</dt>
@@ -680,7 +679,7 @@ function BorrowWorkflowPage() {
                       : 'Not chosen yet'}
                   </dd>
                 </div>
-                <div><dt>Return by</dt><dd>{formatDateTime(request.returnDate)}</dd></div>
+                <div><dt>{request.status === 'handoff_pending' || request.status === 'pending' ? 'Planned return' : 'Return by'}</dt><dd>{formatDateTime(request.returnDate)}</dd></div>
                 <div><dt>Purpose</dt><dd>{request.purpose}</dd></div>
               </dl>
             </section>

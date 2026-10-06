@@ -9,6 +9,7 @@ import './AuthShared.css';
 function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const notice = location.state?.notice;
 
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
@@ -37,9 +38,10 @@ function LoginPage() {
         throw new Error('Google did not return a credential.');
       }
       const response = await api.post('/auth/google', {
-        credential: credentialResponse.credential
-      });
-      finishLogin(response);
+  credential: credentialResponse.credential,
+  mode: 'login'
+});
+finishLogin(response);
     } catch (err) {
       console.error('Google login error:', err);
       setError(err.response?.data?.message || 'Google login failed. Please try again.');
@@ -48,6 +50,7 @@ function LoginPage() {
     }
   };
 
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -81,6 +84,15 @@ function LoginPage() {
           <h2>Student Login</h2>
           <p className="login-subtitle">Log in to access the peer resource network.</p>
 
+          {notice && (
+  <div
+    className="login-error"
+    style={{ background: '#e8f8f5', borderColor: '#55efc4', color: '#00664f' }}
+    role="status"
+  >
+    {notice}
+  </div>
+)}
           {error && <div className="login-error" role="alert">{error}</div>}
 
           <form onSubmit={handleSubmit}>
@@ -101,7 +113,7 @@ function LoginPage() {
             <div className="form-group">
               <div className="password-label">
                 <label htmlFor="login-password">Password</label>
-                <Link to="/help" className="forgot-link">Forgot password?</Link>
+                <Link to="/forgot-password" className="forgot-link">Forgot password?</Link>
               </div>
 
               <div className="password-input-wrap">

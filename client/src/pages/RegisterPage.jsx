@@ -28,7 +28,7 @@ function RegisterPage() {
     try {
       await api.post('/auth/register', formData);
       // Email verification is disabled for now, so go straight to login.
-      navigate('/login');
+      navigate('/login', { state: { notice: 'Account created. Please sign in.' } });
     } catch (err) {
       console.error('Registration error:', err);
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
@@ -46,11 +46,10 @@ function RegisterPage() {
         throw new Error('Google did not return a credential.');
       }
       const response = await api.post('/auth/google', {
-        credential: credentialResponse.credential
-      });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      navigate('/hub');
+  credential: credentialResponse.credential,
+  mode: 'register'
+});
+navigate('/login', { state: { notice: 'Account created with Google. Please sign in.' } });
     } catch (err) {
       console.error('Google sign-up error:', err);
       setError(err.response?.data?.message || 'Google sign-up failed. Please try again.');

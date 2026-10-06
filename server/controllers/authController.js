@@ -1,7 +1,60 @@
+const crypto = require('crypto'); const sendEmail = require('../utils/sendEmail');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
+const sha256 = (v) => crypto.createHash('sha256').update(v).digest('hex');
+
+const forgotPassword = async (req, res) => {
+  const email = req.body.email?.trim().toLowerCase();
+  if (!email) return res.status(400).json({ message: 'Gmail is required' });
+
+  try {
+    const user = await User.findOne({ email });
+    if (user && !user.isBanned) {
+      const token = crypto.randomBytes(32).toString('hex');
+      user.resetTokenHash = sha256(token);
+      user.resetExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+      await user.save();
+
+      const base = (process.env.CLIENT_URL || 'http://localhost:5173').split(',')[0].trim();
+      const link = `${base}/reset-password?token=${token}`;
+      await sendEmail({
+        to: email,
+        subject: 'Reset your We Share password',
+        text: `Reset your password (valid 30 minutes): ${link}\n\nIf you didn't ask for this, ignore this email.`,
+        html: `<p>Reset your We Share password (valid 30 minutes):</p><p><a href="${link}">${link}</a></p><p>If you didn't ask for this, ignore this email.</p>`
+      });
+    }
+    // Same answer whether or not the account exists (no account enumeration).
+    return res.json({ message: 'If an account exists for that Gmail, a reset link has been sent.' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    return res.status(500).json({ message: 'Could not process the request' });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ message: 'Token and new password are required' });
+    if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' });
+
+    const user = await User.findOne({ resetTokenHash: sha256(String(token)), resetExpiresAt: { $gt: new Date() } });
+    if (!user) return res.status(400).json({ message: 'This reset link is invalid or has expired' });
+
+    user.password = await bcrypt.hash(password, 12);
+    if (user.authProvider === 'google') user.authProvider = 'both'; // Google-only users can now also use a password
+    user.resetTokenHash = null;
+    user.resetExpiresAt = null;
+    await user.save();
+
+    return res.json({ message: 'Password updated. You can sign in now.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return res.status(500).json({ message: 'Could not reset password' });
+  }
+};
 
 const googleClient = process.env.GOOGLE_CLIENT_ID
   ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
@@ -191,105 +244,52 @@ const login = async (req, res) => {
 */
 const googleLogin = async (req, res) => {
   try {
-    if (!googleClient || !process.env.GOOGLE_CLIENT_ID) {
-      return res.status(503).json({
-        message: 'Google Sign-In is not configured on the server.'
-      });
-    }
+    if (!googleClient || !process.env.GOOGLE_CLIENT_ID)
+      return res.status(503).json({ message: 'Google Sign-In is not configured on the server.' });
 
-    const credential = req.body.credential;
+    const { credential } = req.body;
+    const mode = req.body.mode === 'register' ? 'register' : 'login';
+    if (!credential) return res.status(400).json({ message: 'Google credential is required.' });
 
-    if (!credential) {
-      return res.status(400).json({
-        message: 'Google credential is required.'
-      });
-    }
-
-    const ticket = await googleClient.verifyIdToken({
-      idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID
-    });
-
+    const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: process.env.GOOGLE_CLIENT_ID });
     const payload = ticket.getPayload();
 
-    if (
-      !payload?.sub ||
-      payload.email?.toLowerCase().endsWith('@gmail.com') !== true ||
-      payload.email_verified !== true
-    ) {
-      return res.status(400).json({
-        message: 'A verified Gmail Google account is required.'
-      });
-    }
+    if (!payload?.sub || !payload.email?.toLowerCase().endsWith('@gmail.com') || payload.email_verified !== true)
+      return res.status(400).json({ message: 'A verified Gmail Google account is required.' });
 
     const email = payload.email.toLowerCase();
+    let user = (await User.findOne({ googleId: payload.sub })) || (await User.findOne({ email }));
 
-    /*
-     * First try Google ID, then email.
-     * This allows an existing normal Gmail account to be
-     * linked with Google Sign-In.
-     */
-    let user = await User.findOne({
-      googleId: payload.sub
-    });
-
-    if (!user) {
-      user = await User.findOne({ email });
-    }
-
-    if (user) {
-      if (user.isBanned) {
-        return res.status(403).json({
-          message: 'Your account has been banned'
-        });
-      }
-
-      user.googleId = payload.sub;
-
-      user.authProvider = user.password
-        ? 'both'
-        : 'google';
-
-      user.isVerified = true;
-      user.emailVerifiedAt =
-        user.emailVerifiedAt || new Date();
-
-      if (!user.profilePicture && payload.picture) {
-        user.profilePicture = payload.picture;
-      }
-
-      await user.save();
-    } else {
-      user = await User.create({
-        fullName:
-          payload.name ||
-          email.split('@')[0],
-
+    /* ---------- REGISTER: create only, no login ---------- */
+    if (mode === 'register') {
+      if (user) return res.status(409).json({ message: 'This Gmail is already registered. Please sign in.' });
+      await User.create({
+        fullName: payload.name || email.split('@')[0],
         email,
-
         googleId: payload.sub,
-
         authProvider: 'google',
-
         profilePicture: payload.picture || '',
-
         isVerified: true,
-
         emailVerifiedAt: new Date()
       });
+      return res.status(201).json({ message: 'Account created. Please sign in.' });
     }
 
-    return res.json({
-      message: 'Google login successful!',
-      token: createToken(user),
-      user: publicUser(user)
-    });
+    /* ---------- LOGIN: existing accounts only ---------- */
+    if (!user) return res.status(404).json({ message: 'No account found for this Gmail. Please register first.' });
+    if (user.isBanned) return res.status(403).json({ message: 'Your account has been banned' });
+
+    if (!user.googleId) {            // registered with password earlier, now using Google
+      user.googleId = payload.sub;
+      user.authProvider = user.password ? 'both' : 'google';
+    }
+    if (!user.profilePicture && payload.picture) user.profilePicture = payload.picture;
+    await user.save();
+
+    return res.json({ message: 'Google login successful!', token: createToken(user), user: publicUser(user) });
   } catch (error) {
     console.error('Google login error:', error);
-
-    return res.status(401).json({
-      message: 'Google authentication failed.'
-    });
+    return res.status(401).json({ message: 'Google authentication failed.' });
   }
 };
 

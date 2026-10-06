@@ -1,270 +1,130 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../api';
+import { formatMoney } from '../utils/borrowStatus';
+import './BorrowModal.css';
 
-const BorrowModal = ({ item, onClose, onSuccess }) => {
+const LATE_FEE = import.meta.env.VITE_LATE_FEE_PER_DAY || '20';
+
+// value for <input min=""> in the user's local time
+const nowInput = () =>
+  new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+export default function BorrowModal({ item, onClose, onSuccess }) {
   const [purpose, setPurpose] = useState('');
-
-  const [handoffOptions, setHandoffOptions] = useState([
-    '',
-    '',
-    ''
-  ]);
-
+  const [options, setOptions] = useState(['', '', '']);
   const [returnDate, setReturnDate] = useState('');
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
 
-  const updateHandoffOption = (index, value) => {
-    setHandoffOptions((prev) => {
-      const updated = [...prev];
-      updated[index] = value;
-      return updated;
-    });
-  };
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && !loading && onClose();
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [loading, onClose]);
 
-  const submitRequest = async (e) => {
+  const setOption = (i, v) => setOptions((p) => p.map((o, idx) => (idx === i ? v : o)));
+
+  const submit = async (e) => {
     e.preventDefault();
-
     setError('');
-    setMessage('');
 
-    if (!purpose.trim()) {
-      setError('Please enter the purpose of borrowing.');
-      return;
-    }
+    if (!purpose.trim()) return setError('Please tell the owner why you need this item.');
+    if (options.some((o) => !o)) return setError('Please choose all 3 handoff times.');
+    if (!returnDate) return setError('Please choose when you will return it.');
 
-    if (handoffOptions.some((option) => !option)) {
-      setError(
-        'Please select all 3 handoff date/time options.'
-      );
-      return;
-    }
-
-    if (!returnDate) {
-      setError('Please select the return date/time.');
-      return;
-    }
-
-    const optionTimes = handoffOptions.map((value) =>
-      new Date(value).getTime()
-    );
-
-    if (new Set(optionTimes).size !== 3) {
-      setError(
-        'All 3 handoff options must be different.'
-      );
-      return;
-    }
-
+    // datetime-local is parsed in the BROWSER's timezone here...
+    const handoffs = options.map((o) => new Date(o));
+    const ret = new Date(returnDate);
     const now = Date.now();
 
-    if (optionTimes.some((time) => time <= now)) {
-      setError(
-        'All handoff options must be in the future.'
-      );
-      return;
-    }
-
-    const returnTime = new Date(returnDate).getTime();
-
-    if (returnTime <= now) {
-      setError(
-        'Return date/time must be in the future.'
-      );
-      return;
-    }
-
-    if (returnTime <= Math.max(...optionTimes)) {
-      setError(
-        'Return date/time must be after all 3 handoff options.'
-      );
-      return;
-    }
+    if (new Set(handoffs.map((d) => d.getTime())).size !== 3)
+      return setError('The 3 handoff times must be different.');
+    if (handoffs.some((d) => d.getTime() <= now))
+      return setError('Handoff times must be in the future.');
+    if (ret.getTime() <= Math.max(...handoffs.map((d) => d.getTime())))
+      return setError('Return time must be after all 3 handoff times.');
 
     try {
       setLoading(true);
-
-      const response = await api.post(
-        '/borrow',
-        {
-          itemId: item._id,
-          purpose: purpose.trim(),
-
-          handoffOptions: handoffOptions.map(
-            (dateTime) => ({
-              dateTime
-            })
-          ),
-
-          returnDate
-        }
-      );
-
-      setMessage(
-        response.data?.message ||
-          'Borrow request submitted successfully.'
-      );
-
-      if (onSuccess) {
-        onSuccess(response.data?.request);
-      }
-
-      setTimeout(() => {
-        onClose();
-      }, 800);
+      // ...and sent as an absolute ISO instant (…Z) so the server never guesses the timezone.
+      const { data } = await api.post('/borrow', {
+        itemId: item._id,
+        purpose: purpose.trim(),
+        handoffOptions: handoffs.map((d) => ({ dateTime: d.toISOString() })),
+        returnDate: ret.toISOString()
+      });
+      onSuccess?.(data.request); // parent closes the dialog / navigates
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          'Unable to submit borrow request.'
-      );
-    } finally {
+      setError(err.response?.data?.message || 'Unable to send the request.');
       setLoading(false);
     }
   };
 
-  return (
-    <div className="borrow-modal-overlay">
-      <div className="borrow-modal">
-        <div className="borrow-modal-header">
+  const min = nowInput();
+
+  return createPortal(
+    <div className="bm-overlay" onMouseDown={(e) => e.target === e.currentTarget && !loading && onClose()}>
+      <div className="bm-dialog" role="dialog" aria-modal="true" aria-labelledby="bm-title">
+        <div className="bm-header">
           <div>
-            <h2>Request to Borrow</h2>
-
-            {item?.title && (
-              <p>{item.title}</p>
-            )}
+            <h2 id="bm-title">Request to borrow</h2>
+            <p>{item.title}</p>
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-          >
-            ×
-          </button>
+          <button type="button" className="bm-close" onClick={onClose} disabled={loading} aria-label="Close">×</button>
         </div>
 
-        <form onSubmit={submitRequest}>
-          <div className="form-group">
-            <label>
-              Purpose of borrowing
-            </label>
+        <div className="bm-summary">
+          <span><strong>Price:</strong> {item.isFree ? 'Free' : formatMoney(item.price)}</span>
+          <span><strong>Late fee:</strong> ₹{LATE_FEE}/day</span>
+          <span><strong>Meet at:</strong> {item.pickupLocation || 'To be agreed in chat'}</span>
+        </div>
 
-            <textarea
-              value={purpose}
-              onChange={(e) =>
-                setPurpose(e.target.value)
-              }
-              placeholder="Why do you need this item?"
-              maxLength={1000}
-              rows={4}
-              disabled={loading}
-            />
+        <form onSubmit={submit}>
+          <div className="bm-field">
+            <label htmlFor="bm-purpose">Why do you need it?</label>
+            <textarea id="bm-purpose" rows={3} maxLength={1000} value={purpose}
+              onChange={(e) => setPurpose(e.target.value)} disabled={loading}
+              placeholder="e.g. Need it for my lab exam on Friday" />
           </div>
 
-          <div className="form-group">
-            <label>
-              Choose 3 possible handoff times
-            </label>
+          <fieldset className="bm-field">
+            <legend>3 times you could meet the owner</legend>
+            <p className="bm-help">The owner will pick one. Times are in your local time.</p>
+            {options.map((o, i) => (
+              <div className="bm-option" key={i}>
+                <label htmlFor={`bm-o-${i}`}>Option {i + 1}</label>
+                <input id={`bm-o-${i}`} type="datetime-local" min={min} value={o}
+                  onChange={(e) => setOption(i, e.target.value)} disabled={loading} />
+              </div>
+            ))}
+          </fieldset>
 
-            <p className="form-help">
-              The owner will select one of these
-              options.
-            </p>
+          <div className="bm-field">
+            <label htmlFor="bm-return">I will return it by</label>
+            <input id="bm-return" type="datetime-local" min={min} value={returnDate}
+              onChange={(e) => setReturnDate(e.target.value)} disabled={loading} />
+<p className="bm-help">
+  This sets how long you'll keep it. The clock starts when you actually receive the item.
+  Late returns cost ₹{LATE_FEE} per 24 hours.
+</p>          </div>
 
-            {handoffOptions.map(
-              (option, index) => (
-                <div
-                  className="handoff-option"
-                  key={index}
-                >
-                  <label>
-                    Option {index + 1}
-                  </label>
+          {error && <div className="bm-error" role="alert">{error}</div>}
 
-                  <input
-                    type="datetime-local"
-                    value={option}
-                    onChange={(e) =>
-                      updateHandoffOption(
-                        index,
-                        e.target.value
-                      )
-                    }
-                    disabled={loading}
-                  />
-                </div>
-              )
-            )}
-          </div>
-
-          <div className="form-group">
-            <label>
-              Expected return date & time
-            </label>
-
-            <input
-              type="datetime-local"
-              value={returnDate}
-              onChange={(e) =>
-                setReturnDate(e.target.value)
-              }
-              disabled={loading}
-            />
-
-            <p className="form-help">
-              The return time must be after all
-              three handoff options.
-            </p>
-          </div>
-
-          {item?.pickupLocation && (
-            <div className="borrow-location">
-              <strong>Pickup location</strong>
-
-              <p>
-                {item.pickupLocation.label ||
-                  item.pickupLocation.address ||
-                  'Pickup location provided by owner'}
-              </p>
-            </div>
-          )}
-
-          {error && (
-            <div className="borrow-error">
-              {error}
-            </div>
-          )}
-
-          {message && (
-            <div className="borrow-success">
-              {message}
-            </div>
-          )}
-
-          <div className="borrow-modal-actions">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              disabled={loading}
-            >
-              {loading
-                ? 'Sending...'
-                : 'Send Borrow Request'}
+          <div className="bm-actions">
+            <button type="button" className="bm-btn bm-btn--ghost" onClick={onClose} disabled={loading}>Cancel</button>
+            <button type="submit" className="bm-btn bm-btn--primary" disabled={loading}>
+              {loading ? 'Sending…' : 'Send request'}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
-};
-
-export default BorrowModal;
+}

@@ -20,6 +20,8 @@ import DigitalDashboard from './pages/DigitalDashboard';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import BorrowWorkflowPage from './pages/BorrowWorkflowPage';
 import InfoPage from './pages/InfoPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 function LandingPage() {
   return (
@@ -57,6 +59,8 @@ function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       {infoPages.map((page) => (
         <Route key={page} path={`/${page}`} element={<InfoPage page={page} />} />

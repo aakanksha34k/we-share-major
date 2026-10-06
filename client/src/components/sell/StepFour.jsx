@@ -17,9 +17,6 @@ function StepFour({ formData }) {
           <div className="review-details">
             <div className="review-badges">
               <span className="review-badge new-listing">NEW LISTING</span>
-              {formData.openToTrades && (
-                <span className="review-badge open-trade">OPEN TO TRADE</span>
-              )}
             </div>
             <h3>{formData.title || 'Your Item Title'}</h3>
             <p className="review-desc">{formData.description || 'Your description will appear here.'}</p>
@@ -52,7 +49,6 @@ function StepFour({ formData }) {
             ['Condition', formData.condition],
             ['Price', formData.isFree ? 'Free' : `₹${formData.price}`],
             ['Pickup', formData.pickupLocation],
-            ['Open to Trades', formData.openToTrades ? 'Yes' : 'No'],
           ].map(([label, value]) => (
             <div key={label} className="summary-row">
               <span className="summary-label">{label}</span>

@@ -36,17 +36,6 @@ function StepThree({ formData, updateForm }) {
           />
         </div>
 
-        {/* Open to Trades Toggle */}
-        <div className="form-group toggle-group">
-          <div>
-            <label>Open to Trades</label>
-            <p className="form-hint">Willing to swap for other textbooks or equipment</p>
-          </div>
-          <div
-            className={`toggle ${formData.openToTrades ? 'on' : ''}`}
-            onClick={() => updateForm({ openToTrades: !formData.openToTrades })}
-          />
-        </div>
 
         {/* Pricing Tip */}
         <div className="pricing-tip">
@@ -62,7 +51,6 @@ function StepThree({ formData, updateForm }) {
           <li>Check Amazon and eBay for reference prices</li>
           <li>Condition matters — used items should be 40-60% of original price</li>
           <li>Free items get 3x more inquiries</li>
-          <li>Open to trades increases your chances of a deal</li>
         </ul>
       </div>
     </div>

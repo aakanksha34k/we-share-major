@@ -4,7 +4,7 @@ export const formatDateTime = (value) => {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+  return date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' });
 };
 
 export const formatMoney = (amount) =>
@@ -135,7 +135,7 @@ export const nextStep = (role, r) => {
         : 'Waiting for the borrower to pay. The booking is released if they don’t pay in 30 minutes.';
     case 'handoff_pending':
       return borrower
-        ? 'Meet the owner, then scan their QR code or type their 6-digit code.'
+        ? 'Meet the owner, then scan their QR code or type their 6-digit code. Your return time starts counting from that moment.'
         : 'When you meet the borrower, generate a QR code and show it to them.';
     case 'active':
       return borrower

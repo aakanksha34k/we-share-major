@@ -22,7 +22,6 @@ const emptyForm = {
   },
   price: '',
   isFree: false,
-  openToTrades: false
 };
 
 function SellPage() {

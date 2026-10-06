@@ -1,5 +1,6 @@
 const BorrowRequest = require('../models/BorrowRequest');
 const Notification = require('../models/Notification');
+const { applyLateFee } = require('../utils/lateFee');
 
 const startBorrowReminderJob = () => {
   const run = async () => {
@@ -37,22 +38,19 @@ const startBorrowReminderJob = () => {
         await Notification.create({ recipient: request.borrower, type: 'borrow_denied', message: 'Your approved request expired because payment was not completed in time.', relatedId: request._id });
       }
 
-      const overdue = await BorrowRequest.find({ status: { $in: ['active', 'overdue', 'late_fee_paid'] }, returnDate: { $lt: todayStart } });
-      for (const request of overdue) {
-        const daysLate = Math.max(1, Math.ceil((todayStart - new Date(request.returnDate)) / 86400000));
-        const totalLateFee = daysLate * Number(request.lateFeePerDay || 20);
-        const paidLateFee = Number(request.lateFeePaidAmount || 0);
-        const outstanding = Math.max(0, totalLateFee - paidLateFee);
-        request.lateFeeAmount = outstanding;
-        request.status = outstanding > 0 ? 'overdue' : 'late_fee_paid';
-        request.lateFeePaymentStatus = outstanding > 0 ? 'pending' : 'captured';
-        if (!request.overdueNotificationSent) {
-          await Notification.create({ recipient: request.borrower, type: 'borrow_overdue', message: `Your borrowed resource is ${daysLate} day(s) overdue. Outstanding late fee: ₹${outstanding}.`, relatedId: request._id });
-          await Notification.create({ recipient: request.lender, type: 'borrow_overdue', message: `A borrowed resource is ${daysLate} day(s) overdue. Outstanding late fee: ₹${outstanding}.`, relatedId: request._id });
-          request.overdueNotificationSent = true;
-        }
-        await request.save();
-      }
+      const overdue = await BorrowRequest.find({
+  status: { $in: ['active', 'overdue', 'late_fee_pending', 'late_fee_paid'] },
+  returnDate: { $lt: now }
+});
+for (const r of overdue) {
+  const { daysLate, outstanding } = applyLateFee(r, now);
+  if (!r.overdueNotificationSent) {
+    await Notification.create({ recipient: r.borrower, type: 'borrow_overdue', message: `Your borrowed resource is overdue (${daysLate} day${daysLate > 1 ? 's' : ''} charged). Outstanding late fee: ₹${outstanding}.`, relatedId: r._id });
+    await Notification.create({ recipient: r.lender, type: 'borrow_overdue', message: `A borrowed resource is overdue (${daysLate} day${daysLate > 1 ? 's' : ''} charged). Outstanding late fee: ₹${outstanding}.`, relatedId: r._id });
+    r.overdueNotificationSent = true;
+  }
+  await r.save();
+}
     } catch (error) {
       console.error('Borrow reminder job error:', error);
     }

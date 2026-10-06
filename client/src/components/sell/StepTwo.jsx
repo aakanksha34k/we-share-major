@@ -3,10 +3,10 @@ import './Steps.css';
 import PickupMap from '../PickupMap';
 
 const locations = [
-  { id: 'library', icon: '📚', name: 'Main University Library', desc: 'Open daily, well-lit, public space' },
-  { id: 'union', icon: '🏛️', name: 'Student Union Building', desc: 'Central campus, near the main cafe' },
-  { id: 'quad', icon: '🌿', name: 'Engineering Quad', desc: 'Outdoor seating, good for quick handoffs' },
-  { id: 'custom', icon: '📍', name: 'Other / Custom Location', desc: 'Specify a different lab or campus building' },
+  { id: 'library', icon: '📚', name: 'JNEC Central Library', desc: 'Quiet, well-lit, always people around' },
+  { id: 'chintan', icon: '🌳', name: 'Chintan Gaah', desc: 'Open seating area, easy to find' },
+  { id: 'lawns', icon: '🌿', name: 'Civil Lawns', desc: 'Open lawns near the Civil department' },
+  { id: 'custom', icon: '💬', name: 'Other / Custom (discuss on message)', desc: 'Agree on a spot with the borrower in chat' },
 ];
 
 function StepTwo({ formData, updateForm }) {
