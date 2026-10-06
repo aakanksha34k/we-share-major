@@ -39,25 +39,29 @@ export default function AppHeader() {
     <header className="ah">
       <NavLink to="/hub" className="ah-logo">🔗 We Share</NavLink>
 
-         <nav className="ah-nav">
-     {links.map(([to, label]) => (
-       <NavLink key={to} to={to}
-         className={({ isActive }) => `ah-link ${isActive ? 'active' : ''}`}>{label}</NavLink>
-     ))}
-     <NavLink to="/sell" className="ah-sell">+ List item</NavLink>
-   </nav>
+      <nav className="ah-nav">
+        {links.map(([to, label]) => (
+          <NavLink key={to} to={to}
+            className={({ isActive }) => `ah-link ${isActive ? 'active' : ''}`}>{label}</NavLink>
+        ))}
+        <NavLink to="/sell" className="ah-sell">+ List item</NavLink>
+      </nav>
 
       <div className="ah-right">
         <NotificationBell />
         <div className="ah-user" ref={menuRef}>
-          <button className="ah-user-btn" onClick={() => setMenuOpen((o) => !o)} aria-haspopup="menu" aria-expanded={menuOpen}>
+          <button className="ah-user-btn" onClick={() => setMenuOpen((o) => !o)}
+            aria-haspopup="menu" aria-expanded={menuOpen}>
             <span className="ah-avatar">{initial}</span>
             <span className="ah-name">{user.fullName?.split(' ')[0] || 'Account'}</span>
             <span aria-hidden>▾</span>
           </button>
           {menuOpen && (
             <div className="ah-menu" role="menu">
-              <div className="ah-menu-id"><strong>{user.fullName}</strong><span>{user.email}</span></div>
+              <div className="ah-menu-id">
+                <strong>{user.fullName}</strong>
+                <span>{user.email}</span>
+              </div>
               <button role="menuitem" onClick={() => { setMenuOpen(false); navigate('/profile'); }}>My profile</button>
               <button role="menuitem" onClick={() => { setMenuOpen(false); navigate('/help'); }}>Help</button>
               <button role="menuitem" className="ah-logout" onClick={logout}>Log out</button>

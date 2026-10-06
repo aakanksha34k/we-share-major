@@ -18,7 +18,6 @@ function ProtectedRoute({ children, adminOnly = false }) {
   if (!token || isTokenExpired(token)) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    // Keep the query string too, so a scanned QR link (?token=...) survives the login detour.
     return (
       <Navigate
         to="/login"
@@ -32,12 +31,12 @@ function ProtectedRoute({ children, adminOnly = false }) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  return children;
+  return (
+    <>
+      <AppHeader />
+      {children}
+    </>
+  );
 }
-return (
-  <>
-    <AppHeader />
-    {children}
-  </>
-);
+
 export default ProtectedRoute;

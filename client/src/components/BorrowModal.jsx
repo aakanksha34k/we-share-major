@@ -6,7 +6,6 @@ import './BorrowModal.css';
 
 const LATE_FEE = import.meta.env.VITE_LATE_FEE_PER_DAY || '20';
 
-// value for <input min=""> in the user's local time
 const nowInput = () =>
   new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
@@ -38,7 +37,6 @@ export default function BorrowModal({ item, onClose, onSuccess }) {
     if (options.some((o) => !o)) return setError('Please choose all 3 handoff times.');
     if (!returnDate) return setError('Please choose when you will return it.');
 
-    // datetime-local is parsed in the BROWSER's timezone here...
     const handoffs = options.map((o) => new Date(o));
     const ret = new Date(returnDate);
     const now = Date.now();
@@ -52,14 +50,13 @@ export default function BorrowModal({ item, onClose, onSuccess }) {
 
     try {
       setLoading(true);
-      // ...and sent as an absolute ISO instant (…Z) so the server never guesses the timezone.
       const { data } = await api.post('/borrow', {
         itemId: item._id,
         purpose: purpose.trim(),
         handoffOptions: handoffs.map((d) => ({ dateTime: d.toISOString() })),
         returnDate: ret.toISOString()
       });
-      onSuccess?.(data.request); // parent closes the dialog / navigates
+      onSuccess?.(data.request);
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to send the request.');
       setLoading(false);
@@ -81,7 +78,7 @@ export default function BorrowModal({ item, onClose, onSuccess }) {
 
         <div className="bm-summary">
           <span><strong>Price:</strong> {item.isFree ? 'Free' : formatMoney(item.price)}</span>
-          <span><strong>Late fee:</strong> ₹{LATE_FEE}/day</span>
+          <span><strong>Late fee:</strong> ₹{LATE_FEE} / 24 hrs</span>
           <span><strong>Meet at:</strong> {item.pickupLocation || 'To be agreed in chat'}</span>
         </div>
 
@@ -109,10 +106,11 @@ export default function BorrowModal({ item, onClose, onSuccess }) {
             <label htmlFor="bm-return">I will return it by</label>
             <input id="bm-return" type="datetime-local" min={min} value={returnDate}
               onChange={(e) => setReturnDate(e.target.value)} disabled={loading} />
-<p className="bm-help">
-  This sets how long you'll keep it. The clock starts when you actually receive the item.
-  Late returns cost ₹{LATE_FEE} per 24 hours.
-</p>          </div>
+            <p className="bm-help">
+              This sets how long you'll keep it. The clock starts when you actually receive the item.
+              Late returns cost ₹{LATE_FEE} per 24 hours.
+            </p>
+          </div>
 
           {error && <div className="bm-error" role="alert">{error}</div>}
 

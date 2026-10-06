@@ -1,16 +1,18 @@
-/* All classes prefixed bm- so they can't clash with other pages' global CSS. */
 .bm-overlay {
-  position: fixed; inset: 0; z-index: 1000; padding: 16px;
-  background: rgba(0,0,0,.5); display: grid; place-items: center; overflow-y: auto;
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 3000;
+  background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; box-sizing: border-box; overflow-y: auto;
 }
 .bm-dialog {
-  width: 100%; max-width: 520px; max-height: 94vh; overflow-y: auto;
-  background: #fff; border-radius: 16px; padding: 26px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.25); color: #2d3436;
+  width: 100%; max-width: 540px; max-height: 92vh; overflow-y: auto;
+  background: #fff; border-radius: 16px; padding: 26px; box-sizing: border-box;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3); color: #2d3436;
+  font-family: 'Inter', Arial, sans-serif;
 }
 .bm-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
-.bm-header h2 { font-size: 1.35rem; font-weight: 800; }
-.bm-header p { color: #636e72; font-size: .92rem; margin-top: 2px; }
+.bm-header h2 { font-size: 1.35rem; font-weight: 800; margin: 0; }
+.bm-header p { color: #636e72; font-size: .92rem; margin: 2px 0 0; }
 .bm-close {
   width: 34px; height: 34px; border: none; border-radius: 50%; background: #f5f6fa;
   font-size: 1.3rem; line-height: 1; cursor: pointer; color: #636e72;
@@ -43,9 +45,3 @@
 .bm-btn--primary:hover:not(:disabled) { background: #00a381; }
 .bm-btn--ghost { background: #fff; border-color: #dfe6e9; color: #636e72; }
 .bm-btn--ghost:hover:not(:disabled) { border-color: #2d3436; color: #2d3436; }
-.bm-btn:focus-visible, .bm-close:focus-visible { outline: 3px solid #55efc4; outline-offset: 2px; }
-
-@media (max-width: 480px) {
-  .bm-dialog { padding: 20px; }
-  .bm-option { grid-template-columns: 1fr; gap: 4px; }
-}
