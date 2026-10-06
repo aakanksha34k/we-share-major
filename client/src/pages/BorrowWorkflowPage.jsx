@@ -1,1480 +1,708 @@
-import React, {
-  useEffect,
-  useRef,
-  useState
-} from 'react';
-
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { Html5Qrcode } from 'html5-qrcode';
 
 import api from '../api';
 import PickupMap from '../components/PickupMap';
+import StatusBadge from '../components/StatusBadge';
+import { loadRazorpay } from '../utils/razorpay';
+import {
+  formatDateTime,
+  formatMoney,
+  getSteps,
+  nextStep,
+  toLocalInput
+} from '../utils/borrowStatus';
+import './BorrowWorkflowPage.css';
 
-const BorrowWorkflowPage = () => {
+const extractToken = (text, param) => {
+  try {
+    return new URL(text).searchParams.get(param) || text;
+  } catch {
+    return text;
+  }
+};
+
+// Defined OUTSIDE the page component so inputs keep focus while typing.
+function PassCard({ pass, label }) {
+  if (!pass) return null;
+  return (
+    <div className="bw-pass">
+      <img src={pass.qr} alt={`${label} QR code`} width="220" height="220" />
+      <div>
+        <span className="bw-pass-label">Or give this code</span>
+        <strong className="bw-pass-code">{pass.code}</strong>
+        <span className="bw-pass-note">Valid until {formatDateTime(pass.expiresAt)}</span>
+      </div>
+    </div>
+  );
+}
+
+function CodeEntry({ value, onChange, onSubmit, onScan, submitLabel, busy }) {
+  return (
+    <div className="bw-entry">
+      <button type="button" className="bw-btn bw-btn--ghost" onClick={onScan} disabled={busy}>
+        Scan QR with camera
+      </button>
+      <div className="bw-entry-row">
+        <input
+          className="bw-input"
+          type="text"
+          inputMode="numeric"
+          maxLength={6}
+          placeholder="6-digit code"
+          aria-label="6-digit code"
+          value={value}
+          onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
+        />
+        <button
+          type="button"
+          className="bw-btn bw-btn--primary"
+          onClick={onSubmit}
+          disabled={busy || value.length !== 6}
+        >
+          {submitLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BorrowWorkflowPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const me = JSON.parse(localStorage.getItem('user') || '{}');
 
   const [request, setRequest] = useState(null);
-
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  const [qrDataUrl, setQrDataUrl] = useState('');
-  const [code, setCode] = useState('');
-
-  const [returnQrDataUrl, setReturnQrDataUrl] = useState('');
-  const [returnCode, setReturnCode] = useState('');
-
+  const [slot, setSlot] = useState(null); // owner: chosen handoff option index
+  const [handoffPass, setHandoffPass] = useState(null); // owner: { qr, code, expiresAt }
+  const [returnPass, setReturnPass] = useState(null); // borrower: { qr, code, expiresAt }
+  const [handoffInput, setHandoffInput] = useState(''); // borrower types pickup code
+  const [returnInput, setReturnInput] = useState(''); // owner types return code
   const [scanMode, setScanMode] = useState(null);
-
-  const [returnDate, setReturnDate] = useState('');
+  const [legacyReturnDate, setLegacyReturnDate] = useState('');
 
   const scannerRef = useRef(null);
+  const handledUrlRef = useRef(false);
 
-  /*
-  |--------------------------------------------------------------------------
-  | LOAD REQUEST
-  |--------------------------------------------------------------------------
-  */
+  /* ---------------- load ---------------- */
 
-  const loadRequest = async () => {
-    try {
-      setLoading(true);
-      setError('');
-
-      const response = await api.get(`/borrow/${id}`);
-
-      const data = response.data?.request;
-
-      setRequest(data || null);
-
-      if (data?.returnDate) {
-        const date = new Date(data.returnDate);
-
-        if (!Number.isNaN(date.getTime())) {
-          setReturnDate(
-            new Date(
-              date.getTime() -
-                date.getTimezoneOffset() * 60000
-            )
-              .toISOString()
-              .slice(0, 16)
-          );
-        }
+  const loadRequest = useCallback(
+    async (silent = false) => {
+      try {
+        if (!silent) setLoading(true);
+        const response = await api.get(`/borrow/${id}`);
+        const data = response.data?.request || null;
+        setRequest(data);
+        if (data?.returnDate) setLegacyReturnDate(toLocalInput(data.returnDate));
+      } catch (err) {
+        setError(err.response?.data?.message || 'Unable to load this borrow request.');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error('loadRequest error:', err);
-
-      setError(
-        err.response?.data?.message ||
-          'Unable to load borrow request.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [id]
+  );
 
   useEffect(() => {
     loadRequest();
-  }, [id]);
+  }, [loadRequest]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | AUTO VERIFY FROM QR URL
-  |--------------------------------------------------------------------------
-  */
+  const isBorrower = Boolean(request) && String(request.borrower?._id) === String(me.id);
+  const isLender = Boolean(request) && String(request.lender?._id) === String(me.id);
+  const role = isBorrower ? 'borrower' : 'lender';
 
-  useEffect(() => {
-    const token = searchParams.get('token');
-    const returnToken = searchParams.get('returnToken');
+  /* ---------------- small action wrapper ---------------- */
 
-    if (token) {
-      verifyPickup(token);
-    }
-
-    if (returnToken) {
-      verifyReturn(returnToken);
-    }
-  }, [searchParams]);
-
-  /*
-  |--------------------------------------------------------------------------
-  | HELPERS
-  |--------------------------------------------------------------------------
-  */
-
-  const formatDateTime = (value) => {
-    if (!value) return 'Not selected';
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return 'Invalid date';
-    }
-
-    return date.toLocaleString('en-IN', {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    });
-  };
-
-  const getStatusLabel = (status) => {
-    const labels = {
-      pending: 'Waiting for owner approval',
-      approved: 'Approved',
-      return_pending: 'Waiting for return confirmation',
-      payment_pending: 'Payment required',
-      paid: 'Payment completed',
-      handoff_pending: 'Handoff pending',
-      active: 'Item currently borrowed',
-      overdue: 'Return overdue',
-      late_fee_pending: 'Late fee pending',
-      late_fee_paid: 'Late fee paid',
-      returned: 'Returned',
-      denied: 'Request denied'
-    };
-
-    return labels[status] || status;
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | CONFIRM RETURN DATE
-  |--------------------------------------------------------------------------
-  |
-  | This remains here only as a compatibility fallback for older
-  | requests that may still be in return_pending.
-  |
-  | New requests already contain returnDate when created.
-  |--------------------------------------------------------------------------
-  */
-
-  const confirmReturnDate = async () => {
-    if (!returnDate) {
-      setError('Please select a return date and time.');
-      return;
-    }
-
+  const run = async (fn, fallback) => {
+    setBusy(true);
+    setError('');
+    setMessage('');
     try {
-      setBusy(true);
-      setError('');
-      setMessage('');
+      await fn();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || fallback);
+    } finally {
+      setBusy(false);
+    }
+  };
 
-      const response = await api.put(
-        `/borrow/${id}/return-date`,
-        {
-          returnDate: new Date(returnDate).toISOString()
+  /* ---------------- owner: approve / deny ---------------- */
+
+  const approve = () =>
+    run(async () => {
+      if (slot === null) throw new Error('Pick one of the handoff times first.');
+      const response = await api.put(`/borrow/${id}/approve`, { handoffOptionIndex: slot });
+      setMessage(response.data?.message || 'Request approved.');
+      await loadRequest(true);
+    }, 'Unable to approve this request.');
+
+  const deny = () => {
+    if (!window.confirm('Deny this borrow request?')) return;
+    run(async () => {
+      await api.put(`/borrow/${id}/deny`);
+      setMessage('Request denied.');
+      await loadRequest(true);
+    }, 'Unable to deny this request.');
+  };
+
+  /* ---------------- legacy: stuck return_pending ---------------- */
+
+  const confirmReturnDate = () =>
+    run(async () => {
+      if (!legacyReturnDate) throw new Error('Please select a return date and time.');
+      const response = await api.put(`/borrow/${id}/return-date`, {
+        returnDate: new Date(legacyReturnDate).toISOString()
+      });
+      setMessage(response.data?.message || 'Return date confirmed.');
+      await loadRequest(true);
+    }, 'Unable to confirm the return date.');
+
+  /* ---------------- payments ---------------- */
+
+  const openCheckout = ({ orderUrl, verifyUrl, description }) =>
+    run(async () => {
+      const { data } = await api.post(orderUrl);
+      await loadRazorpay();
+
+      // Server replies { orderId, amount, currency, keyId }
+      const checkout = new window.Razorpay({
+        key: data.keyId,
+        amount: data.amount,
+        currency: data.currency || 'INR',
+        order_id: data.orderId,
+        name: 'We Share',
+        description,
+        prefill: { name: me.fullName, email: me.email },
+        theme: { color: '#00b894' },
+        modal: { ondismiss: () => setBusy(false) },
+        handler: async (paymentResponse) => {
+          try {
+            const verify = await api.post(verifyUrl, paymentResponse);
+            setMessage(verify.data?.message || 'Payment verified.');
+            await loadRequest(true);
+          } catch (err) {
+            setError(err.response?.data?.message || 'Payment verification failed.');
+          } finally {
+            setBusy(false);
+          }
         }
-      );
+      });
 
-      setRequest(
-        response.data?.request || request
-      );
+      checkout.on('payment.failed', (failure) => {
+        setError(failure?.error?.description || 'Payment failed. Please try again.');
+        setBusy(false);
+      });
 
-      setMessage(
-        response.data?.message ||
-          'Return date confirmed.'
-      );
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          'Unable to confirm return date.'
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
+      checkout.open();
+    }, 'Unable to start the payment.');
 
-  /*
-  |--------------------------------------------------------------------------
-  | CREATE HANDOFF QR / CODE
-  |--------------------------------------------------------------------------
-  */
+  const payForBorrow = () =>
+    openCheckout({
+      orderUrl: `/payments/${id}/order`,
+      verifyUrl: `/payments/${id}/verify`,
+      description: request?.item?.title || 'Borrow payment'
+    });
 
-  const createHandoff = async () => {
-    try {
-      setBusy(true);
-      setError('');
-      setMessage('');
+  const payLateFee = () =>
+    openCheckout({
+      orderUrl: `/payments/${id}/late-fee/order`,
+      verifyUrl: `/payments/${id}/late-fee/verify`,
+      description: 'Late return fee'
+    });
 
-      const response = await api.post(
-        `/borrow/${id}/handoff/create`
-      );
+  /* ---------------- handoff + return ---------------- */
 
-      const token = response.data?.token;
-      const generatedCode = response.data?.code;
+  const makeQr = (param, token) =>
+    QRCode.toDataURL(
+      `${window.location.origin}/borrow/${id}?${param}=${encodeURIComponent(token)}`,
+      { width: 280, margin: 1 }
+    );
 
-      setCode(generatedCode || '');
+  const createHandoff = () =>
+    run(async () => {
+      const { data } = await api.post(`/borrow/${id}/handoff/create`);
+      setHandoffPass({
+        qr: await makeQr('token', data.token),
+        code: data.code,
+        expiresAt: data.expiresAt
+      });
+    }, 'Unable to create the pickup code.');
 
-      if (token) {
-        const qrUrl =
-          `${window.location.origin}` +
-          `/borrow/${id}?token=${encodeURIComponent(token)}`;
-
-        const qr = await QRCode.toDataURL(qrUrl);
-
-        setQrDataUrl(qr);
+  const verifyPickup = (token = null) =>
+    run(async () => {
+      const payload = token ? { token } : { code: handoffInput };
+      if (!token && handoffInput.length !== 6) {
+        throw new Error('Enter the 6-digit pickup code, or scan the QR code.');
       }
+      const response = await api.post(`/borrow/${id}/handoff/verify`, payload);
+      setMessage(response.data?.message || 'Handoff verified.');
+      setHandoffInput('');
+      await loadRequest(true);
+    }, 'Unable to verify the handoff.');
 
-      setMessage(
-        response.data?.message ||
-          'Handoff verification created.'
-      );
+  const createReturn = () =>
+    run(async () => {
+      const { data } = await api.post(`/borrow/${id}/return/create`);
+      setReturnPass({
+        qr: await makeQr('returnToken', data.returnToken),
+        code: data.returnCode,
+        expiresAt: data.expiresAt
+      });
+    }, 'Unable to create the return code.');
 
-      await loadRequest();
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          'Unable to create handoff verification.'
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | VERIFY HANDOFF
-  |--------------------------------------------------------------------------
-  */
-
-  const verifyPickup = async (tokenValue = null) => {
-    try {
-      setBusy(true);
-      setError('');
-      setMessage('');
-
-      const payload = {};
-
-      if (tokenValue) {
-        payload.token = tokenValue;
-      } else if (code) {
-        payload.code = code;
-      } else {
-        setError(
-          'Please scan the QR code or enter the handoff code.'
-        );
-        return;
+  const verifyReturn = (token = null) =>
+    run(async () => {
+      const payload = token ? { returnToken: token } : { returnCode: returnInput };
+      if (!token && returnInput.length !== 6) {
+        throw new Error('Enter the 6-digit return code, or scan the QR code.');
       }
+      const response = await api.post(`/borrow/${id}/return/verify`, payload);
+      setMessage(response.data?.message || 'Return verified.');
+      setReturnInput('');
+      setReturnPass(null);
+      await loadRequest(true);
+    }, 'Unable to verify the return.');
 
-      const response = await api.post(
-        `/borrow/${id}/handoff/verify`,
-        payload
-      );
+  /* ---------------- camera scanner ---------------- */
 
-      setMessage(
-        response.data?.message ||
-          'Handoff verified successfully.'
-      );
-
-      setQrDataUrl('');
-      setCode('');
-
-      await loadRequest();
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          'Unable to verify handoff.'
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | CREATE RETURN QR / CODE
-  |--------------------------------------------------------------------------
-  */
-
-  const generateReturn = async () => {
+  const stopScanner = async () => {
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
     try {
-      setBusy(true);
-      setError('');
-      setMessage('');
-
-      const response = await api.post(
-        `/borrow/${id}/return/create`
-      );
-
-      const token = response.data?.returnToken;
-      const generatedCode =
-        response.data?.returnCode;
-
-      setReturnCode(generatedCode || '');
-
-      if (token) {
-        const qrUrl =
-          `${window.location.origin}` +
-          `/borrow/${id}?returnToken=${encodeURIComponent(
-            token
-          )}`;
-
-        const qr = await QRCode.toDataURL(qrUrl);
-
-        setReturnQrDataUrl(qr);
+      if (scanner) {
+        await scanner.stop();
+        scanner.clear();
       }
-
-      setMessage(
-        response.data?.message ||
-          'Return verification created.'
-      );
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          'Unable to create return verification.'
-      );
-    } finally {
-      setBusy(false);
+    } catch {
+      /* scanner was already stopped */
     }
+    setScanMode(null);
   };
-
-  /*
-  |--------------------------------------------------------------------------
-  | VERIFY RETURN
-  |--------------------------------------------------------------------------
-  */
-
-  const verifyReturn = async (tokenValue = null) => {
-    try {
-      setBusy(true);
-      setError('');
-      setMessage('');
-
-      const payload = {};
-
-      if (tokenValue) {
-        payload.returnToken = tokenValue;
-      } else if (returnCode) {
-        payload.returnCode = returnCode;
-      } else {
-        setError(
-          'Please scan the return QR code or enter the return code.'
-        );
-        return;
-      }
-
-      const response = await api.post(
-        `/borrow/${id}/return/verify`,
-        payload
-      );
-
-      setMessage(
-        response.data?.message ||
-          'Return verified successfully.'
-      );
-
-      setReturnQrDataUrl('');
-      setReturnCode('');
-
-      await loadRequest();
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          'Unable to verify return.'
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | QR SCANNER
-  |--------------------------------------------------------------------------
-  */
 
   const startScanner = async (mode) => {
+    setError('');
+    setScanMode(mode);
+    await new Promise((resolve) => setTimeout(resolve, 100)); // let the container render
+
     try {
-      setError('');
-      setScanMode(mode);
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, 100)
-      );
-
-      const scanner = new Html5Qrcode(
-        'borrow-qr-reader'
-      );
-
+      const scanner = new Html5Qrcode('bw-qr-reader');
       scannerRef.current = scanner;
 
       await scanner.start(
-        {
-          facingMode: 'environment'
-        },
-        {
-          fps: 10,
-          qrbox: {
-            width: 250,
-            height: 250
-          }
-        },
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
         async (decodedText) => {
-          try {
-            await scanner.stop();
-          } catch (stopError) {
-            console.error(stopError);
-          }
-
-          scannerRef.current = null;
-          setScanMode(null);
-
-          try {
-            const url = new URL(decodedText);
-
-            const token =
-              url.searchParams.get('token');
-
-            const returnToken =
-              url.searchParams.get('returnToken');
-
-            if (mode === 'handoff' && token) {
-              await verifyPickup(token);
-              return;
-            }
-
-            if (
-              mode === 'return' &&
-              returnToken
-            ) {
-              await verifyReturn(returnToken);
-              return;
-            }
-          } catch (urlError) {
-            console.error(
-              'QR URL parsing error:',
-              urlError
-            );
-          }
-
-          if (mode === 'handoff') {
-            await verifyPickup(decodedText);
-          } else {
-            await verifyReturn(decodedText);
-          }
+          if (!scannerRef.current) return; // already handled
+          await stopScanner();
+          if (mode === 'handoff') verifyPickup(extractToken(decodedText, 'token'));
+          else verifyReturn(extractToken(decodedText, 'returnToken'));
         },
         () => {}
       );
     } catch (err) {
       console.error('Scanner error:', err);
-
+      scannerRef.current = null;
       setScanMode(null);
-
-      setError(
-        'Unable to start camera scanner. Please check camera permissions.'
-      );
+      setError('Could not start the camera. Check permissions, or type the 6-digit code instead.');
     }
   };
 
-  const stopScanner = async () => {
-    try {
-      if (scannerRef.current) {
-        await scannerRef.current.stop();
-        scannerRef.current.clear();
-      }
-    } catch (err) {
-      console.error('stopScanner error:', err);
-    }
+  useEffect(
+    () => () => {
+      scannerRef.current?.stop().catch(() => {});
+    },
+    []
+  );
 
-    scannerRef.current = null;
-    setScanMode(null);
-  };
+  /* ---------------- QR link opened with the phone camera ---------------- */
 
   useEffect(() => {
-    return () => {
-      if (scannerRef.current) {
-        scannerRef.current
-          .stop()
-          .catch(() => {});
-      }
-    };
-  }, []);
+    if (!request || handledUrlRef.current) return;
 
-  /*
-  |--------------------------------------------------------------------------
-  | NORMAL PAYMENT
-  |--------------------------------------------------------------------------
-  */
+    const token = searchParams.get('token');
+    const returnToken = searchParams.get('returnToken');
+    if (!token && !returnToken) return;
 
-  const payForBorrow = async () => {
-    try {
-      setBusy(true);
-      setError('');
-      setMessage('');
+    handledUrlRef.current = true; // React StrictMode runs effects twice in dev
+    setSearchParams({}, { replace: true });
 
-      const orderResponse = await api.post(
-        `/payments/${id}/order`
-      );
+    if (token && isBorrower) verifyPickup(token);
+    else if (returnToken && isLender) verifyReturn(returnToken);
+    else setError('This QR code is meant for the other person in this transaction.');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request]);
 
-      const order = orderResponse.data?.order;
-
-      if (!order) {
-        throw new Error(
-          'Payment order was not created.'
-        );
-      }
-
-      if (!window.Razorpay) {
-        throw new Error(
-          'Razorpay is not available.'
-        );
-      }
-
-      const razorpay = new window.Razorpay({
-        key: order.key || orderResponse.data?.key,
-        amount: order.amount,
-        currency: order.currency || 'INR',
-        name: 'We Share',
-        description:
-          request?.item?.title ||
-          'Borrow request',
-
-        order_id: order.id,
-
-        handler: async (paymentResponse) => {
-          try {
-            setBusy(true);
-
-            const verifyResponse =
-              await api.post(
-                `/payments/${id}/verify`,
-                paymentResponse
-              );
-
-            setMessage(
-              verifyResponse.data?.message ||
-                'Payment completed.'
-            );
-
-            await loadRequest();
-          } catch (err) {
-            setError(
-              err.response?.data?.message ||
-                'Payment verification failed.'
-            );
-          } finally {
-            setBusy(false);
-          }
-        }
-      });
-
-      razorpay.open();
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          'Unable to start payment.'
-      );
-
-      setBusy(false);
-    }
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | LATE FEE PAYMENT
-  |--------------------------------------------------------------------------
-  */
-
-  const payLateFee = async () => {
-    try {
-      setBusy(true);
-      setError('');
-      setMessage('');
-
-      const orderResponse = await api.post(
-        `/payments/${id}/late-fee/order`
-      );
-
-      const order = orderResponse.data?.order;
-
-      if (!order) {
-        throw new Error(
-          'Late fee payment order was not created.'
-        );
-      }
-
-      if (!window.Razorpay) {
-        throw new Error(
-          'Razorpay is not available.'
-        );
-      }
-
-      const razorpay = new window.Razorpay({
-        key: order.key || orderResponse.data?.key,
-        amount: order.amount,
-        currency: order.currency || 'INR',
-        name: 'We Share',
-        description: 'Late return fee',
-
-        order_id: order.id,
-
-        handler: async (paymentResponse) => {
-          try {
-            setBusy(true);
-
-            const verifyResponse =
-              await api.post(
-                `/payments/${id}/late-fee/verify`,
-                paymentResponse
-              );
-
-            setMessage(
-              verifyResponse.data?.message ||
-                'Late fee payment completed.'
-            );
-
-            await loadRequest();
-          } catch (err) {
-            setError(
-              err.response?.data?.message ||
-                'Late fee verification failed.'
-            );
-          } finally {
-            setBusy(false);
-          }
-        }
-      });
-
-      razorpay.open();
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          'Unable to start late fee payment.'
-      );
-
-      setBusy(false);
-    }
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | LOADING
-  |--------------------------------------------------------------------------
-  */
+  /* ---------------- render guards ---------------- */
 
   if (loading) {
     return (
-      <div className="borrow-page">
-        <p>Loading borrow request...</p>
+      <div className="bw-page">
+        <p className="bw-state">Loading your transaction…</p>
       </div>
     );
   }
 
   if (!request) {
     return (
-      <div className="borrow-page">
-        <p>
-          {error ||
-            'Borrow request could not be found.'}
-        </p>
-
-        <button
-          onClick={() => navigate(-1)}
-        >
-          Go Back
-        </button>
+      <div className="bw-page">
+        <div className="bw-state">
+          <p>{error || 'This borrow request could not be found.'}</p>
+          <button className="bw-btn bw-btn--primary" onClick={() => navigate('/lending-dashboard')}>
+            Go to my dashboard
+          </button>
+        </div>
       </div>
     );
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | RENDER
-  |--------------------------------------------------------------------------
-  */
+  /* ---------------- derived values ---------------- */
+
+  const other = isBorrower ? request.lender : request.borrower;
+  const steps = getSteps(request);
+  const item = request.item || {};
+  const pickup = request.pickupLocation || {};
+  const hasCoords = pickup.latitude != null && pickup.longitude != null;
+  const lateFeeDue = Number(request.lateFeeAmount || 0);
+  const now = Date.now();
+
+  const canGenerateReturn =
+    ['active', 'late_fee_paid'].includes(request.status) ||
+    (request.status === 'overdue' && request.lateFeePaymentStatus === 'captured');
+  const mustPayLateFee =
+    ['overdue', 'late_fee_pending'].includes(request.status) &&
+    request.lateFeePaymentStatus !== 'captured';
+  const returnable = ['active', 'overdue', 'late_fee_paid'].includes(request.status);
+  const paymentDeadline = request.approvedAt
+    ? new Date(new Date(request.approvedAt).getTime() + 30 * 60000)
+    : null;
+
+  /* ---------------- render ---------------- */
 
   return (
-    <div className="borrow-page">
-      <div className="borrow-page-header">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-        >
-          ← Back
+    <div className="bw-page">
+      <header className="bw-topbar">
+        <button className="bw-link" onClick={() => navigate('/lending-dashboard')}>
+          ← My dashboard
         </button>
+        <Link to="/hub" className="bw-logo">🔗 We Share</Link>
+      </header>
 
-        <h1>Borrow Request</h1>
-      </div>
-
-      {error && (
-        <div className="borrow-error">
-          {error}
-        </div>
-      )}
-
-      {message && (
-        <div className="borrow-success">
-          {message}
-        </div>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* ITEM */}
-      {/* ------------------------------------------------------------- */}
-
-      <section className="borrow-card">
-        <h2>
-          {request.item?.title ||
-            'Borrowed Item'}
-        </h2>
-
-        {request.item?.category && (
-          <p>
-            Category: {request.item.category}
-          </p>
-        )}
-
-        {request.item?.condition && (
-          <p>
-            Condition: {request.item.condition}
-          </p>
-        )}
-      </section>
-
-      {/* ------------------------------------------------------------- */}
-      {/* STATUS */}
-      {/* ------------------------------------------------------------- */}
-
-      <section className="borrow-card">
-        <h3>Status</h3>
-
-        <p>
-          {getStatusLabel(request.status)}
-        </p>
-      </section>
-
-      {/* ------------------------------------------------------------- */}
-      {/* PURPOSE */}
-      {/* ------------------------------------------------------------- */}
-
-      <section className="borrow-card">
-        <h3>Purpose</h3>
-
-        <p>
-          {request.purpose ||
-            'No purpose provided.'}
-        </p>
-      </section>
-
-      {/* ------------------------------------------------------------- */}
-      {/* THREE PROPOSED HANDOFF OPTIONS */}
-      {/* ------------------------------------------------------------- */}
-
-      {request.handoffOptions?.length > 0 && (
-        <section className="borrow-card">
-          <h3>
-            Proposed Handoff Times
-          </h3>
-
-          <p>
-            The borrower provided these possible
-            handoff times. The owner selects one
-            during approval.
-          </p>
-
-          <div className="handoff-options-list">
-            {request.handoffOptions.map(
-              (option, index) => {
-                const selected =
-                  request.selectedHandoffAt &&
-                  new Date(
-                    request.selectedHandoffAt
-                  ).getTime() ===
-                    new Date(
-                      option.dateTime
-                    ).getTime();
-
-                return (
-                  <div
-                    key={index}
-                    className={
-                      selected
-                        ? 'handoff-option selected'
-                        : 'handoff-option'
-                    }
-                  >
-                    <strong>
-                      Option {index + 1}
-                    </strong>
-
-                    <span>
-                      {formatDateTime(
-                        option.dateTime
-                      )}
-                    </span>
-
-                    {selected && (
-                      <span>
-                        ✓ Selected by owner
-                      </span>
-                    )}
-                  </div>
-                );
-              }
-            )}
+      <main className="bw-main">
+        {/* ---- title + progress ---- */}
+        <section className="bw-card bw-hero">
+          <div className="bw-hero-top">
+            <div className="bw-thumb">
+              {item.photos?.[0] ? <img src={item.photos[0]} alt="" /> : <span>📦</span>}
+            </div>
+            <div className="bw-hero-text">
+              <h1>{item.title || 'Borrowed item'}</h1>
+              <p>
+                {isBorrower ? 'You are borrowing from' : 'You are lending to'}{' '}
+                <strong>{other?.fullName || 'a student'}</strong>
+              </p>
+            </div>
+            <StatusBadge status={request.status} />
           </div>
-        </section>
-      )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* CONFIRMED HANDOFF */}
-      {/* ------------------------------------------------------------- */}
-
-      {request.selectedHandoffAt && (
-        <section className="borrow-card">
-          <h3>
-            Confirmed Handoff
-          </h3>
-
-          <p>
-            {formatDateTime(
-              request.selectedHandoffAt
-            )}
-          </p>
-
-          <small>
-            This is the handoff time selected
-            by the item owner.
-          </small>
-        </section>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* RETURN DATE */}
-      {/* ------------------------------------------------------------- */}
-
-      {request.returnDate && (
-        <section className="borrow-card">
-          <h3>
-            Return By
-          </h3>
-
-          <p>
-            {formatDateTime(
-              request.returnDate
-            )}
-          </p>
-        </section>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* PICKUP LOCATION */}
-      {/* ------------------------------------------------------------- */}
-
-      {request.pickupLocation && (
-        <section className="borrow-card">
-          <h3>
-            Handoff Location
-          </h3>
-
-          {request.pickupLocation.label && (
-            <p>
-              <strong>
-                {request.pickupLocation.label}
-              </strong>
-            </p>
+          {request.status !== 'denied' && (
+            <ol className="bw-steps" aria-label="Progress">
+              {steps.map((step) => (
+                <li key={step.key} className={`bw-step bw-step--${step.state}`}>
+                  <span className="bw-step-dot">{step.state === 'done' ? '✓' : ''}</span>
+                  <span className="bw-step-label">{step.label}</span>
+                </li>
+              ))}
+            </ol>
           )}
-
-          {request.pickupLocation.address && (
-            <p>
-              {request.pickupLocation.address}
-            </p>
-          )}
-
-          {request.pickupLocation.latitude != null &&
-            request.pickupLocation.longitude != null && (
-              <>
-                <PickupMap
-                  latitude={
-                    request.pickupLocation.latitude
-                  }
-                  longitude={
-                    request.pickupLocation.longitude
-                  }
-                />
-
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${request.pickupLocation.latitude},${request.pickupLocation.longitude}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open in Google Maps
-                </a>
-              </>
-            )}
         </section>
-      )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* OLD REQUEST COMPATIBILITY: RETURN DATE */}
-      {/* ------------------------------------------------------------- */}
+        {error && <div className="bw-alert bw-alert--error" role="alert">{error}</div>}
+        {message && <div className="bw-alert bw-alert--ok" role="status">{message}</div>}
 
-      {request.status === 'return_pending' &&
-        !request.returnDate && (
-          <section className="borrow-card">
-            <h3>
-              Confirm Return Date
-            </h3>
+        <div className="bw-grid">
+          {/* ================= LEFT: what to do now ================= */}
+          <div className="bw-col">
+            <section className="bw-card bw-next">
+              <h2>What happens next</h2>
+              <p>{nextStep(role, request)}</p>
+              {other?._id && (
+                <button className="bw-link" onClick={() => navigate(`/messages/${other._id}`)}>
+                  💬 Message {other.fullName?.split(' ')[0] || 'them'}
+                </button>
+              )}
+            </section>
 
-            <p>
-              Select when you expect to return
-              the item.
-            </p>
-
-            <input
-              type="datetime-local"
-              value={returnDate}
-              onChange={(e) =>
-                setReturnDate(e.target.value)
-              }
-              disabled={busy}
-            />
-
-            <button
-              type="button"
-              onClick={confirmReturnDate}
-              disabled={busy}
-            >
-              {busy
-                ? 'Saving...'
-                : 'Confirm Return Date'}
-            </button>
-          </section>
-        )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* PAYMENT */}
-      {/* ------------------------------------------------------------- */}
-
-      {request.status ===
-        'payment_pending' && (
-        <section className="borrow-card">
-          <h3>
-            Payment Required
-          </h3>
-
-          <p>
-            Amount:{' '}
-            ₹
-            {Number(
-              request.basePrice || 0
-            ).toFixed(2)}
-          </p>
-
-          <button
-            type="button"
-            onClick={payForBorrow}
-            disabled={busy}
-          >
-            {busy
-              ? 'Processing...'
-              : 'Pay Now'}
-          </button>
-        </section>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* HANDOFF - BORROWER */}
-      {/* ------------------------------------------------------------- */}
-
-      {request.status ===
-        'handoff_pending' &&
-        request.handoffStatus !==
-          'verified' && (
-          <section className="borrow-card">
-            <h3>
-              Item Handoff
-            </h3>
-
-            <p>
-              Meet the owner at the confirmed
-              handoff time and location.
-            </p>
-
-            <p>
-              The owner will provide a QR code
-              or 6-digit verification code.
-            </p>
-
-            <div>
-              <button
-                type="button"
-                onClick={() =>
-                  startScanner('handoff')
-                }
-                disabled={busy}
-              >
-                Scan Handoff QR
-              </button>
-            </div>
-
-            <div>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="Enter 6-digit code"
-                value={code}
-                onChange={(e) =>
-                  setCode(
-                    e.target.value.replace(
-                      /\D/g,
-                      ''
-                    )
-                  )
-                }
-              />
-
-              <button
-                type="button"
-                onClick={() =>
-                  verifyPickup()
-                }
-                disabled={
-                  busy ||
-                  code.length !== 6
-                }
-              >
-                Verify Code
-              </button>
-            </div>
-          </section>
-        )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* HANDOFF - OWNER */}
-      {/* ------------------------------------------------------------- */}
-
-      {request.status ===
-        'handoff_pending' &&
-        request.handoffStatus !==
-          'verified' && (
-          <section className="borrow-card">
-            <h3>
-              Owner Handoff Verification
-            </h3>
-
-            <p>
-              Generate a QR code and 6-digit
-              code for the borrower.
-            </p>
-
-            <button
-              type="button"
-              onClick={createHandoff}
-              disabled={busy}
-            >
-              {busy
-                ? 'Generating...'
-                : 'Generate Handoff QR / Code'}
-            </button>
-
-            {qrDataUrl && (
-              <div>
-                <img
-                  src={qrDataUrl}
-                  alt="Handoff QR Code"
-                  style={{
-                    width: 250,
-                    height: 250
-                  }}
-                />
-              </div>
-            )}
-
-            {code && (
-              <div>
-                <strong>
-                  Handoff Code
-                </strong>
-
-                <p
-                  style={{
-                    fontSize: '2rem',
-                    letterSpacing:
-                      '0.3rem'
-                  }}
-                >
-                  {code}
+            {/* ---- OWNER: approve / deny ---- */}
+            {request.status === 'pending' && isLender && (
+              <section className="bw-card">
+                <h2>Review this request</h2>
+                <p className="bw-muted">
+                  {other?.fullName} wants to borrow this and suggested three handoff times.
+                  Pick the one that suits you.
                 </p>
-              </div>
+                <p className="bw-purpose">“{request.purpose}”</p>
+
+                <div className="bw-slots" role="radiogroup" aria-label="Handoff time">
+                  {request.handoffOptions.map((option, index) => {
+                    const expired = new Date(option.dateTime).getTime() <= now;
+                    return (
+                      <label
+                        key={index}
+                        className={`bw-slot ${slot === index ? 'is-selected' : ''} ${expired ? 'is-expired' : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          name="slot"
+                          checked={slot === index}
+                          disabled={expired || busy}
+                          onChange={() => setSlot(index)}
+                        />
+                        <span>{formatDateTime(option.dateTime)}</span>
+                        {expired && <em>already passed</em>}
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <div className="bw-actions">
+                  <button
+                    className="bw-btn bw-btn--primary"
+                    onClick={approve}
+                    disabled={busy || slot === null}
+                  >
+                    {busy ? 'Working…' : 'Approve with this time'}
+                  </button>
+                  <button className="bw-btn bw-btn--danger" onClick={deny} disabled={busy}>
+                    Deny request
+                  </button>
+                </div>
+              </section>
             )}
-          </section>
-        )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* ACTIVE BORROW */}
-      {/* ------------------------------------------------------------- */}
+            {/* ---- BORROWER: waiting ---- */}
+            {request.status === 'pending' && isBorrower && (
+              <section className="bw-card">
+                <h2>Your proposed times</h2>
+                <ul className="bw-plain-list">
+                  {request.handoffOptions.map((option, index) => (
+                    <li key={index}>{formatDateTime(option.dateTime)}</li>
+                  ))}
+                </ul>
+                <p className="bw-muted">The owner will choose one of these.</p>
+              </section>
+            )}
 
-      {request.status === 'active' && (
-        <section className="borrow-card">
-          <h3>
-            Item Currently Borrowed
-          </h3>
+            {/* ---- legacy stuck requests ---- */}
+            {request.status === 'return_pending' && isBorrower && (
+              <section className="bw-card">
+                <h2>Confirm your return date</h2>
+                <input
+                  className="bw-input"
+                  type="datetime-local"
+                  value={legacyReturnDate}
+                  onChange={(e) => setLegacyReturnDate(e.target.value)}
+                  disabled={busy}
+                />
+                <div className="bw-actions">
+                  <button className="bw-btn bw-btn--primary" onClick={confirmReturnDate} disabled={busy}>
+                    Confirm and continue
+                  </button>
+                </div>
+              </section>
+            )}
 
-          <p>
-            The handoff has been verified.
-          </p>
-
-          {request.returnDate && (
-            <p>
-              Return by:{' '}
-              <strong>
-                {formatDateTime(
-                  request.returnDate
+            {/* ---- BORROWER: pay ---- */}
+            {request.status === 'payment_pending' && isBorrower && (
+              <section className="bw-card">
+                <h2>Pay to confirm</h2>
+                <p className="bw-amount">{formatMoney(request.basePrice)}</p>
+                {paymentDeadline && (
+                  <p className="bw-muted">Pay before {formatDateTime(paymentDeadline)} or the booking is released.</p>
                 )}
-              </strong>
-            </p>
-          )}
+                <div className="bw-actions">
+                  <button className="bw-btn bw-btn--primary" onClick={payForBorrow} disabled={busy}>
+                    {busy ? 'Opening payment…' : 'Pay now'}
+                  </button>
+                </div>
+                <p className="bw-muted bw-small">Payments are in test mode. No real money moves.</p>
+              </section>
+            )}
 
-          <button
-            type="button"
-            onClick={generateReturn}
-            disabled={busy}
-          >
-            {busy
-              ? 'Generating...'
-              : 'Generate Return QR / Code'}
-          </button>
+            {/* ---- HANDOFF ---- */}
+            {request.status === 'handoff_pending' && isLender && (
+              <section className="bw-card">
+                <h2>Hand over the item</h2>
+                <p className="bw-muted">
+                  Meet at {pickup.label || 'the pickup spot'} on {formatDateTime(request.selectedHandoffAt)}.
+                  When you’re together, generate a code and let the borrower scan it.
+                </p>
+                <div className="bw-actions">
+                  <button className="bw-btn bw-btn--primary" onClick={createHandoff} disabled={busy}>
+                    {handoffPass ? 'Generate a new code' : 'Generate pickup QR and code'}
+                  </button>
+                </div>
+                <PassCard pass={handoffPass} label="Pickup" />
+              </section>
+            )}
 
-          {returnQrDataUrl && (
-            <div>
-              <img
-                src={returnQrDataUrl}
-                alt="Return QR Code"
-                style={{
-                  width: 250,
-                  height: 250
-                }}
-              />
-            </div>
-          )}
+            {request.status === 'handoff_pending' && isBorrower && (
+              <section className="bw-card">
+                <h2>Pick up the item</h2>
+                <p className="bw-muted">
+                  Meet at {pickup.label || 'the pickup spot'} on {formatDateTime(request.selectedHandoffAt)}.
+                  The owner will show you a QR code.
+                </p>
+                <CodeEntry
+                  value={handoffInput}
+                  onChange={setHandoffInput}
+                  onSubmit={() => verifyPickup()}
+                  onScan={() => startScanner('handoff')}
+                  submitLabel="Confirm pickup"
+                  busy={busy}
+                />
+              </section>
+            )}
 
-          {returnCode && (
-            <div>
-              <strong>
-                Return Code
-              </strong>
+            {/* ---- LATE FEE (borrower) ---- */}
+            {mustPayLateFee && isBorrower && lateFeeDue > 0 && (
+              <section className="bw-card bw-card--warn">
+                <h2>Late fee</h2>
+                <p className="bw-amount">₹{lateFeeDue}</p>
+                <p className="bw-muted">
+                  The return time has passed. The fee is ₹{request.lateFeePerDay} per day.
+                </p>
+                <div className="bw-actions">
+                  <button className="bw-btn bw-btn--primary" onClick={payLateFee} disabled={busy}>
+                    {busy ? 'Opening payment…' : 'Pay late fee'}
+                  </button>
+                </div>
+              </section>
+            )}
 
-              <p
-                style={{
-                  fontSize: '2rem',
-                  letterSpacing:
-                    '0.3rem'
-                }}
-              >
-                {returnCode}
-              </p>
-            </div>
-          )}
-        </section>
-      )}
+            {/* ---- RETURN ---- */}
+            {returnable && isBorrower && (
+              <section className="bw-card">
+                <h2>Return the item</h2>
+                {canGenerateReturn ? (
+                  <>
+                    <p className="bw-muted">
+                      When you meet the owner, generate a code and let them scan it.
+                    </p>
+                    <div className="bw-actions">
+                      <button className="bw-btn bw-btn--primary" onClick={createReturn} disabled={busy}>
+                        {returnPass ? 'Generate a new code' : 'Generate return QR and code'}
+                      </button>
+                    </div>
+                    <PassCard pass={returnPass} label="Return" />
+                  </>
+                ) : (
+                  <p className="bw-muted">Pay the late fee above to unlock the return code.</p>
+                )}
+              </section>
+            )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* OVERDUE */}
-      {/* ------------------------------------------------------------- */}
+            {returnable && isLender && (
+              <section className="bw-card">
+                <h2>Receive the item back</h2>
+                <p className="bw-muted">
+                  When the borrower hands it back, scan their return QR or type their code.
+                </p>
+                <CodeEntry
+                  value={returnInput}
+                  onChange={setReturnInput}
+                  onSubmit={() => verifyReturn()}
+                  onScan={() => startScanner('return')}
+                  submitLabel="Confirm return"
+                  busy={busy}
+                />
+              </section>
+            )}
 
-      {request.status === 'overdue' && (
-        <section className="borrow-card">
-          <h3>
-            Return Overdue
-          </h3>
+            {/* ---- scanner ---- */}
+            {scanMode && (
+              <section className="bw-card">
+                <h2>{scanMode === 'handoff' ? 'Scan the pickup QR' : 'Scan the return QR'}</h2>
+                <div id="bw-qr-reader" className="bw-reader" />
+                <div className="bw-actions">
+                  <button className="bw-btn bw-btn--ghost" onClick={stopScanner}>Stop camera</button>
+                </div>
+              </section>
+            )}
 
-          <p>
-            The return deadline has passed.
-          </p>
+            {request.status === 'returned' && (
+              <section className="bw-card bw-card--done">
+                <h2>Returned</h2>
+                <p className="bw-muted">
+                  Verified {formatDateTime(request.actualReturnDate)}. The item is available again.
+                </p>
+              </section>
+            )}
 
-          <p>
-            Late fee:{' '}
-            <strong>
-              ₹
-              {Number(
-                request.lateFeeAmount || 0
-              ).toFixed(2)}
-            </strong>
-          </p>
-
-          {request.lateFeePaymentStatus !==
-            'captured' && (
-            <button
-              type="button"
-              onClick={payLateFee}
-              disabled={busy}
-            >
-              {busy
-                ? 'Processing...'
-                : 'Pay Late Fee'}
-            </button>
-          )}
-
-          {request.lateFeePaymentStatus ===
-            'captured' && (
-            <button
-              type="button"
-              onClick={generateReturn}
-              disabled={busy}
-            >
-              Generate Return QR / Code
-            </button>
-          )}
-
-          {returnQrDataUrl && (
-            <div>
-              <img
-                src={returnQrDataUrl}
-                alt="Return QR Code"
-                style={{
-                  width: 250,
-                  height: 250
-                }}
-              />
-            </div>
-          )}
-
-          {returnCode && (
-            <div>
-              <strong>
-                Return Code
-              </strong>
-
-              <p
-                style={{
-                  fontSize: '2rem',
-                  letterSpacing:
-                    '0.3rem'
-                }}
-              >
-                {returnCode}
-              </p>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* LATE FEE PENDING */}
-      {/* ------------------------------------------------------------- */}
-
-      {request.status ===
-        'late_fee_pending' && (
-        <section className="borrow-card">
-          <h3>
-            Late Fee Pending
-          </h3>
-
-          <p>
-            Please complete the late fee
-            payment before returning the item.
-          </p>
-
-          <p>
-            Amount:{' '}
-            <strong>
-              ₹
-              {Number(
-                request.lateFeeAmount || 0
-              ).toFixed(2)}
-            </strong>
-          </p>
-
-          <button
-            type="button"
-            onClick={payLateFee}
-            disabled={busy}
-          >
-            {busy
-              ? 'Processing...'
-              : 'Pay Late Fee'}
-          </button>
-        </section>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* LATE FEE PAID */}
-      {/* ------------------------------------------------------------- */}
-
-      {request.status ===
-        'late_fee_paid' && (
-        <section className="borrow-card">
-          <h3>
-            Late Fee Paid
-          </h3>
-
-          <p>
-            You can now generate the return
-            verification.
-          </p>
-
-          <button
-            type="button"
-            onClick={generateReturn}
-            disabled={busy}
-          >
-            Generate Return QR / Code
-          </button>
-
-          {returnQrDataUrl && (
-            <div>
-              <img
-                src={returnQrDataUrl}
-                alt="Return QR Code"
-                style={{
-                  width: 250,
-                  height: 250
-                }}
-              />
-            </div>
-          )}
-
-          {returnCode && (
-            <div>
-              <strong>
-                Return Code
-              </strong>
-
-              <p
-                style={{
-                  fontSize: '2rem',
-                  letterSpacing:
-                    '0.3rem'
-                }}
-              >
-                {returnCode}
-              </p>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* RETURN VERIFICATION - OWNER */}
-      {/* ------------------------------------------------------------- */}
-
-      {[
-        'active',
-        'overdue',
-        'late_fee_paid'
-      ].includes(request.status) && (
-        <section className="borrow-card">
-          <h3>
-            Owner Return Verification
-          </h3>
-
-          <p>
-            When the borrower returns the item,
-            scan their return QR or enter their
-            return code.
-          </p>
-
-          <button
-            type="button"
-            onClick={() =>
-              startScanner('return')
-            }
-            disabled={busy}
-          >
-            Scan Return QR
-          </button>
-
-          <div>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="Enter 6-digit return code"
-              value={returnCode}
-              onChange={(e) =>
-                setReturnCode(
-                  e.target.value.replace(
-                    /\D/g,
-                    ''
-                  )
-                )
-              }
-            />
-
-            <button
-              type="button"
-              onClick={() =>
-                verifyReturn()
-              }
-              disabled={
-                busy ||
-                returnCode.length !== 6
-              }
-            >
-              Verify Return Code
-            </button>
+            {request.status === 'denied' && (
+              <section className="bw-card">
+                <h2>Request closed</h2>
+                <p className="bw-muted">
+                  {isBorrower
+                    ? 'This request was denied or expired. You can browse and request another item.'
+                    : 'You denied this request, or it expired.'}
+                </p>
+                <div className="bw-actions">
+                  <button className="bw-btn bw-btn--primary" onClick={() => navigate('/dashboard')}>
+                    Browse marketplace
+                  </button>
+                </div>
+              </section>
+            )}
           </div>
-        </section>
-      )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* SCANNER */}
-      {/* ------------------------------------------------------------- */}
-
-      {scanMode && (
-        <section className="borrow-card">
-          <h3>
-            {scanMode === 'handoff'
-              ? 'Scan Handoff QR'
-              : 'Scan Return QR'}
-          </h3>
-
-          <div
-            id="borrow-qr-reader"
-            style={{
-              width: '100%',
-              maxWidth: 400
-            }}
-          />
-
-          <button
-            type="button"
-            onClick={stopScanner}
-          >
-            Stop Scanner
-          </button>
-        </section>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* RETURNED */}
-      {/* ------------------------------------------------------------- */}
-
-      {request.status === 'returned' && (
-        <section className="borrow-card">
-          <h3>
-            ✓ Item Returned
-          </h3>
-
-          <p>
-            The owner successfully verified
-            the return.
-          </p>
-
-          {request.actualReturnDate && (
-            <p>
-              Actual return time:{' '}
-              <strong>
-                {formatDateTime(
-                  request.actualReturnDate
+          {/* ================= RIGHT: details ================= */}
+          <aside className="bw-col">
+            <section className="bw-card">
+              <h2>Details</h2>
+              <dl className="bw-details">
+                <div><dt>Price</dt><dd>{formatMoney(request.basePrice)}</dd></div>
+                {request.basePrice > 0 && (
+                  <div><dt>Late fee</dt><dd>₹{request.lateFeePerDay} / day</dd></div>
                 )}
-              </strong>
-            </p>
-          )}
-        </section>
-      )}
+                <div>
+                  <dt>Handoff</dt>
+                  <dd>
+                    {request.selectedHandoffAt
+                      ? formatDateTime(request.selectedHandoffAt)
+                      : 'Not chosen yet'}
+                  </dd>
+                </div>
+                <div><dt>Return by</dt><dd>{formatDateTime(request.returnDate)}</dd></div>
+                <div><dt>Purpose</dt><dd>{request.purpose}</dd></div>
+              </dl>
+            </section>
+
+            <section className="bw-card">
+              <h2>Meeting spot</h2>
+              <p className="bw-spot">{pickup.label || 'To be agreed in chat'}</p>
+              {pickup.address && <p className="bw-muted">{pickup.address}</p>}
+              {hasCoords && (
+                <>
+                  <PickupMap
+                    value={{ latitude: pickup.latitude, longitude: pickup.longitude }}
+                    readOnly
+                  />
+                </>
+              )}
+            </section>
+          </aside>
+        </div>
+      </main>
     </div>
   );
-};
+}
 
 export default BorrowWorkflowPage;

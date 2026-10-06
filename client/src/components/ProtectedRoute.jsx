@@ -17,7 +17,14 @@ function ProtectedRoute({ children, adminOnly = false }) {
   if (!token || isTokenExpired(token)) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    // Keep the query string too, so a scanned QR link (?token=...) survives the login detour.
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location.pathname + location.search }}
+      />
+    );
   }
 
   if (adminOnly && user.role !== 'admin') {

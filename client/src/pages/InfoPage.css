@@ -1,0 +1,29 @@
+.info-page { min-height: 100vh; background: #f5f6fa; color: #2d3436; font-family: 'Inter', Arial, sans-serif; }
+.info-top { display: flex; justify-content: space-between; align-items: center; padding: 16px 32px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.info-logo { font-size: 1.25rem; font-weight: 700; color: #00b894; text-decoration: none; }
+.info-cta { display: inline-block; padding: 8px 20px; border-radius: 8px; background: #00b894; color: #fff; font-weight: 600; text-decoration: none; }
+.info-cta:hover { background: #00a381; }
+
+.info-nav { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 32px; max-width: 820px; margin: 0 auto; }
+.info-nav a { padding: 6px 14px; border-radius: 999px; border: 1.5px solid #dfe6e9; background: #fff; color: #636e72; font-size: .85rem; font-weight: 600; text-decoration: none; }
+.info-nav a:hover { border-color: #00b894; color: #00b894; }
+.info-nav a.is-active { background: #00b894; border-color: #00b894; color: #fff; }
+
+.info-body { max-width: 820px; margin: 0 auto; padding: 12px 32px 80px; }
+.info-body h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; }
+.info-intro { color: #636e72; font-size: 1.05rem; line-height: 1.6; margin-bottom: 28px; max-width: 62ch; }
+.info-body section { margin-bottom: 26px; }
+.info-body h2 { font-size: 1.15rem; font-weight: 700; margin-bottom: 8px; }
+.info-body p, .info-body li { line-height: 1.7; max-width: 70ch; color: #3d474b; }
+.info-body ul { padding-left: 20px; display: grid; gap: 6px; }
+.info-body a { color: #00977a; }
+
+.info-body details { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; }
+.info-body summary { cursor: pointer; font-weight: 700; }
+.info-body details p { margin-top: 10px; }
+
+.info-page a:focus-visible, .info-page summary:focus-visible { outline: 3px solid #55efc4; outline-offset: 3px; border-radius: 4px; }
+@media (max-width: 600px) {
+  .info-top, .info-nav, .info-body { padding-left: 18px; padding-right: 18px; }
+  .info-body h1 { font-size: 1.6rem; }
+}

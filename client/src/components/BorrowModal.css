@@ -1,187 +1,51 @@
-/* BorrowModal.css */
+/* All classes prefixed bm- so they can't clash with other pages' global CSS. */
+.bm-overlay {
+  position: fixed; inset: 0; z-index: 1000; padding: 16px;
+  background: rgba(0,0,0,.5); display: grid; place-items: center; overflow-y: auto;
+}
+.bm-dialog {
+  width: 100%; max-width: 520px; max-height: 94vh; overflow-y: auto;
+  background: #fff; border-radius: 16px; padding: 26px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25); color: #2d3436;
+}
+.bm-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.bm-header h2 { font-size: 1.35rem; font-weight: 800; }
+.bm-header p { color: #636e72; font-size: .92rem; margin-top: 2px; }
+.bm-close {
+  width: 34px; height: 34px; border: none; border-radius: 50%; background: #f5f6fa;
+  font-size: 1.3rem; line-height: 1; cursor: pointer; color: #636e72;
+}
+.bm-close:hover:not(:disabled) { background: #dfe6e9; }
 
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
+.bm-summary {
+  display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 12px 14px; margin-bottom: 18px;
+  background: #e8f8f5; border-radius: 10px; font-size: .9rem;
 }
 
-.modal-box {
-  background: white;
-  border-radius: 16px;
-  padding: 32px;
-  width: 100%;
-  max-width: 500px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+.bm-field { margin: 0 0 18px; padding: 0; border: none; min-width: 0; }
+.bm-field label, .bm-field legend { display: block; font-weight: 700; font-size: .9rem; margin-bottom: 6px; padding: 0; }
+.bm-field textarea, .bm-field input {
+  width: 100%; padding: 11px 13px; border: 1.5px solid #dfe6e9; border-radius: 8px;
+  font: inherit; color: #2d3436; outline: none; box-sizing: border-box;
 }
+.bm-field textarea { resize: vertical; }
+.bm-field textarea:focus, .bm-field input:focus { border-color: #00b894; box-shadow: 0 0 0 3px #d4f5e9; }
+.bm-help { color: #8a979c; font-size: .82rem; margin: 0 0 8px; }
+.bm-field > .bm-help:last-child { margin: 6px 0 0; }
+.bm-option { display: grid; grid-template-columns: 76px 1fr; align-items: center; gap: 10px; margin-bottom: 8px; }
+.bm-option label { margin: 0; font-weight: 600; color: #636e72; }
 
-/* ── Header ── */
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
+.bm-error { background: #ffeaea; border: 1px solid #ff7675; color: #b32525; padding: 10px 14px; border-radius: 8px; font-size: .9rem; margin-bottom: 14px; }
+.bm-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.bm-btn { padding: 11px 22px; border-radius: 9px; border: 1.5px solid transparent; font: inherit; font-weight: 700; cursor: pointer; }
+.bm-btn:disabled { opacity: .6; cursor: not-allowed; }
+.bm-btn--primary { background: #00b894; color: #fff; }
+.bm-btn--primary:hover:not(:disabled) { background: #00a381; }
+.bm-btn--ghost { background: #fff; border-color: #dfe6e9; color: #636e72; }
+.bm-btn--ghost:hover:not(:disabled) { border-color: #2d3436; color: #2d3436; }
+.bm-btn:focus-visible, .bm-close:focus-visible { outline: 3px solid #55efc4; outline-offset: 2px; }
 
-.modal-header h2 {
-  font-size: 1.4rem;
-  font-weight: 800;
-  color: #2d3436;
-}
-
-.modal-close {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: #f5f6fa;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: #636e72;
-  transition: all 0.2s;
-}
-
-.modal-close:hover {
-  background: #dfe6e9;
-}
-
-/* ── Item Info ── */
-.modal-item-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-  background: #f5f6fa;
-  border-radius: 10px;
-  margin-bottom: 20px;
-}
-
-.modal-item-icon {
-  font-size: 1.8rem;
-}
-
-.modal-item-title {
-  font-weight: 700;
-  color: #2d3436;
-  font-size: 0.95rem;
-  margin-bottom: 4px;
-}
-
-.modal-item-meta {
-  font-size: 0.82rem;
-  color: #636e72;
-}
-
-/* ── Error ── */
-.modal-error {
-  background: #ffeaea;
-  border: 1px solid #ff7675;
-  color: #d63031;
-  padding: 10px 14px;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  font-size: 0.88rem;
-}
-
-/* ── Form ── */
-.modal-form-group {
-  margin-bottom: 20px;
-}
-
-.modal-form-group label {
-  display: block;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #2d3436;
-  margin-bottom: 8px;
-}
-
-.modal-form-group textarea,
-.modal-form-group input[type="date"] {
-  width: 100%;
-  padding: 12px 14px;
-  border: 1.5px solid #dfe6e9;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  color: #2d3436;
-  outline: none;
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-  font-family: Arial, sans-serif;
-}
-
-.modal-form-group textarea:focus,
-.modal-form-group input[type="date"]:focus {
-  border-color: #00b894;
-}
-
-.modal-form-group textarea {
-  resize: vertical;
-}
-
-/* ── Info Box ── */
-.modal-info {
-  padding: 12px 14px;
-  background: #e8f8f5;
-  border-radius: 8px;
-  margin-bottom: 20px;
-}
-
-.modal-info p {
-  font-size: 0.82rem;
-  color: #2d3436;
-  line-height: 1.5;
-}
-
-/* ── Actions ── */
-.modal-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.btn-cancel {
-  flex: 1;
-  padding: 12px;
-  background: transparent;
-  border: 1.5px solid #dfe6e9;
-  border-radius: 8px;
-  color: #636e72;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-cancel:hover {
-  border-color: #ff7675;
-  color: #d63031;
-}
-
-.btn-send {
-  flex: 1;
-  padding: 12px;
-  background: #00b894;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-send:hover {
-  background: #00a381;
-}
-
-.btn-send:disabled {
-  background: #b2bec3;
-  cursor: not-allowed;
+@media (max-width: 480px) {
+  .bm-dialog { padding: 20px; }
+  .bm-option { grid-template-columns: 1fr; gap: 4px; }
 }

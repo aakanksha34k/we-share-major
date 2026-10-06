@@ -1,0 +1,14 @@
+.ws-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ws-badge--green { background: #d4f5e9; color: #006b55; }
+.ws-badge--blue  { background: #dbeafe; color: #1e40af; }
+.ws-badge--amber { background: #fff1c7; color: #8a5a00; }
+.ws-badge--red   { background: #fde2e2; color: #a61b1b; }
+.ws-badge--grey  { background: #eceff1; color: #546168; }

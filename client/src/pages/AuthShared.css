@@ -1,0 +1,29 @@
+/* Shared by Login + Register. Adds styles those pages referenced but never defined. */
+.auth-home-link { color: inherit; text-decoration: none; }
+
+.password-input-wrap { position: relative; }
+/* login CSS only styled type=email/password, so "Show" (type=text) lost its styling */
+.password-input-wrap input {
+  width: 100%; padding: 12px 64px 12px 14px; border: 1.5px solid #dfe6e9; border-radius: 8px;
+  font-size: 0.95rem; color: #2d3436; background: #fff; outline: none; box-sizing: border-box;
+}
+.password-input-wrap input:focus { border-color: #00b894; }
+.password-toggle {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  border: none; background: none; padding: 6px 8px; border-radius: 6px;
+  color: #00b894; font-weight: 600; font-size: 0.82rem; cursor: pointer;
+}
+.password-toggle:hover { background: #e8f8f5; }
+
+.google-signup { display: flex; flex-direction: column; align-items: center; margin: 18px 0; }
+.or-divider { display: flex; align-items: center; gap: 12px; width: 100%; color: #b2bec3; font-size: 0.85rem; margin-bottom: 14px; }
+.or-divider::before, .or-divider::after { content: ''; flex: 1; height: 1px; background: #dfe6e9; }
+
+.auth-text-link { color: #00b894; font-weight: 600; text-decoration: none; }
+.auth-text-link:hover { text-decoration: underline; }
+.login-footer-links a, .terms-text a { text-decoration: none; }
+.terms-text a { color: #636e72; text-decoration: underline; }
+
+.login-page a:focus-visible, .register-page a:focus-visible, .password-toggle:focus-visible {
+  outline: 3px solid #55efc4; outline-offset: 2px; border-radius: 4px;
+}

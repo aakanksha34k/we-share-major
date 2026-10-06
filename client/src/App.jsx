@@ -19,6 +19,7 @@ import HubSelection from './pages/HubSelection';
 import DigitalDashboard from './pages/DigitalDashboard';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import BorrowWorkflowPage from './pages/BorrowWorkflowPage';
+import InfoPage from './pages/InfoPage';
 
 function LandingPage() {
   return (
@@ -32,6 +33,23 @@ function LandingPage() {
   );
 }
 
+const protectedRoutes = [
+  ['/hub', <HubSelection key="hub" />],
+  ['/dashboard', <Dashboard key="dash" />],
+  ['/digital-dashboard', <DigitalDashboard key="digital" />],
+  ['/sell', <SellPage key="sell" />],
+  ['/sell/:id', <SellPage key="sell-edit" />],
+  ['/item/:id', <ItemDetailPage key="item" />],
+  ['/lending-dashboard', <LendingDashboard key="lending" />],
+  ['/borrow/:id', <BorrowWorkflowPage key="borrow" />],
+  ['/handoff/:id', <BorrowWorkflowPage key="handoff" />],
+  ['/messages', <MessagesPage key="messages" />],
+  ['/messages/:userId', <MessagesPage key="messages-user" />],
+  ['/profile', <ProfilePage key="profile" />]
+];
+
+const infoPages = ['help', 'safety', 'contact', 'faq', 'privacy', 'terms', 'cookies'];
+
 function App() {
   return (
     <Routes>
@@ -39,73 +57,23 @@ function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
-      <Route path="/hub" element={
-        <ProtectedRoute>
-          <HubSelection />
-        </ProtectedRoute>
-      } />
-      <Route path="/dashboard" element={
-        <ProtectedRoute>
-          <Dashboard />
-        </ProtectedRoute>
-      } />
-      <Route path="/digital-dashboard" element={
-        <ProtectedRoute>
-          <DigitalDashboard />
-        </ProtectedRoute>
-      } />
-      <Route path="/sell" element={
-        <ProtectedRoute>
-          <SellPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/sell/:id" element={
-        <ProtectedRoute>
-          <SellPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/item/:id" element={
-        <ProtectedRoute>
-          <ItemDetailPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/lending-dashboard" element={
-        <ProtectedRoute>
-          <LendingDashboard />
-        </ProtectedRoute>
-      } />
-      <Route path="/borrow/:id" element={
-        <ProtectedRoute>
-          <BorrowWorkflowPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/handoff/:id" element={
-        <ProtectedRoute>
-          <BorrowWorkflowPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/messages" element={
-        <ProtectedRoute>
-          <MessagesPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/messages/:userId" element={
-        <ProtectedRoute>
-          <MessagesPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/profile" element={
-        <ProtectedRoute>
-          <ProfilePage />
-        </ProtectedRoute>
-      } />
+
+      {infoPages.map((page) => (
+        <Route key={page} path={`/${page}`} element={<InfoPage page={page} />} />
+      ))}
+
+      {protectedRoutes.map(([path, element]) => (
+        <Route key={path} path={path} element={<ProtectedRoute>{element}</ProtectedRoute>} />
+      ))}
+
       <Route path="/admin" element={
         <ProtectedRoute adminOnly>
           <AdminDashboard />
         </ProtectedRoute>
       } />
+
+      <Route path="*" element={<InfoPage page="notfound" />} />
     </Routes>
-    
   );
 }
 

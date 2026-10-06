@@ -1,150 +1,49 @@
-/* client/src/pages/LendingDashboard.css */
+/* All classes prefixed ld- (the old file used global names like .btn-back / .btn-edit that clashed with other pages). */
+.ld-page { max-width: 980px; margin: 0 auto; padding: 24px 16px 60px; color: #2d3436; font-family: 'Inter', Arial, sans-serif; min-height: 100vh; }
 
-.lending-dashboard {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-  font-family: 'Inter', sans-serif;
-  color: #333;
-}
+.ld-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.ld-header h1 { font-size: 1.7rem; font-weight: 800; }
+.ld-header-cta { margin-left: auto; }
+.ld-link { background: none; border: none; font: inherit; font-weight: 600; color: #636e72; cursor: pointer; padding: 6px 0; }
+.ld-link:hover { color: #00b894; }
 
-.ld-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
+.ld-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5e7eb; margin-bottom: 22px; overflow-x: auto; }
+.ld-tab { background: none; border: none; padding: 12px 18px; font: inherit; font-weight: 600; color: #6b7280; cursor: pointer; white-space: nowrap; position: relative; }
+.ld-tab:hover { color: #00a381; }
+.ld-tab.is-active { color: #00a381; }
+.ld-tab.is-active::after { content: ''; position: absolute; left: 0; right: 0; bottom: -2px; height: 3px; background: #00b894; border-radius: 3px 3px 0 0; }
 
-.ld-header h1 {
-  margin: 0;
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #1f2937;
-}
-
-.btn-back {
-  background: transparent;
-  border: none;
-  font-size: 1rem;
-  color: #4f46e5;
-  cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 6px;
-}
-
-.btn-back:hover {
-  background: #f3f4f6;
-}
-
-.ld-tabs {
-  display: flex;
-  gap: 1rem;
-  border-bottom: 2px solid #e5e7eb;
-  margin-bottom: 2rem;
-}
-
-.tab-btn {
-  background: transparent;
-  border: none;
-  font-size: 1rem;
-  font-weight: 500;
-  color: #6b7280;
-  padding: 0.75rem 1.5rem;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.2s ease;
-}
-
-.tab-btn:hover {
-  color: #4f46e5;
-}
-
-.tab-btn.active {
-  color: #4f46e5;
-}
-
-.tab-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background-color: #4f46e5;
-  border-radius: 2px 2px 0 0;
-}
-
-.ld-loading,
-.ld-error,
-.ld-empty {
-  text-align: center;
-  padding: 3rem;
-  font-size: 1.1rem;
-  color: #6b7280;
-}
+.ld-content { display: grid; gap: 14px; }
+.ld-state { text-align: center; color: #636e72; padding: 40px 16px; display: grid; gap: 14px; justify-items: center; }
+.ld-state--error { color: #b32525; }
 
 .ld-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 1rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex; align-items: center; gap: 16px; padding: 16px;
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 14px;
 }
+.ld-thumb { width: 72px; height: 72px; flex-shrink: 0; border-radius: 10px; overflow: hidden; background: #f5f6fa; display: grid; place-items: center; font-size: 1.6rem; }
+.ld-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.ld-info { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.ld-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ld-title-row h3 { font-size: 1.05rem; font-weight: 700; }
+.ld-meta { font-size: .88rem; color: #636e72; }
+.ld-next { font-size: .88rem; color: #4b585d; margin-top: 4px; }
+.ld-next.is-action { color: #00664f; font-weight: 600; }
+.ld-next.is-action::before { content: '● '; color: #00b894; }
 
-.ld-card-info h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.2rem;
-  color: #111827;
+.ld-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.ld-btn { padding: 9px 16px; border-radius: 8px; border: 1.5px solid transparent; font: inherit; font-size: .9rem; font-weight: 700; cursor: pointer; }
+.ld-btn--primary { background: #00b894; color: #fff; }
+.ld-btn--primary:hover { background: #00a381; }
+.ld-btn--ghost { background: #fff; border-color: #dfe6e9; color: #2d3436; }
+.ld-btn--ghost:hover { border-color: #00b894; color: #00b894; }
+.ld-btn--danger { background: #fff; border-color: #ff7675; color: #c0392b; }
+.ld-btn--danger:hover { background: #ffeaea; }
+.ld-btn:focus-visible, .ld-tab:focus-visible, .ld-link:focus-visible { outline: 3px solid #55efc4; outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .ld-card { flex-wrap: wrap; }
+  .ld-actions { flex-direction: row; width: 100%; }
+  .ld-actions .ld-btn { flex: 1; }
+  .ld-header-cta { margin-left: 0; }
 }
-
-.ld-card-info p {
-  margin: 0.25rem 0;
-  font-size: 0.95rem;
-  color: #4b5563;
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.status-badge.available { background: #d1fae5; color: #065f46; }
-.status-badge.lent, .status-badge.approved { background: #dbeafe; color: #1e40af; }
-.status-badge.draft, .status-badge.pending { background: #fef3c7; color: #92400e; }
-.status-badge.returned { background: #e0e7ff; color: #3730a3; }
-.status-badge.denied { background: #fee2e2; color: #991b1b; }
-
-.ld-card-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.ld-card-actions button {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-edit { background: #f3f4f6; color: #374151; }
-.btn-edit:hover { background: #e5e7eb; }
-
-.btn-approve { background: #10b981; color: white; }
-.btn-approve:hover { background: #059669; }
-
-.btn-deny { background: #ef4444; color: white; }
-.btn-deny:hover { background: #dc2626; }
-
-.btn-return { background: #4f46e5; color: white; }
-.btn-return:hover { background: #4338ca; }

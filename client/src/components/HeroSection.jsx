@@ -1,8 +1,15 @@
 // src/components/HeroSection.jsx
-
-import "./HeroSection.css";
+import { useNavigate } from 'react-router-dom';
+import './HeroSection.css';
+import './LandingExtras.css';
 
 function HeroSection() {
+  const navigate = useNavigate();
+  const loggedIn = Boolean(localStorage.getItem('token'));
+
+  const scrollToHow = () =>
+    document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' });
+
   return (
     <section id="hero" className="hero">
       <div className="hero-text">
@@ -18,8 +25,16 @@ function HeroSection() {
           lab gear, and academic tools safely and affordably.
         </p>
         <div className="hero-buttons">
-          <Link to="/login"><button className="btn-primary">Start Sharing</button></Link>
+          <button className="btn-primary" onClick={() => navigate(loggedIn ? '/hub' : '/register')}>
+            {loggedIn ? 'Open your hub' : 'Start Sharing'}
+          </button>
+          <button className="btn-secondary" onClick={scrollToHow}>See how it works</button>
         </div>
+        {!loggedIn && (
+          <p className="hero-login-hint">
+            Already a member? <a href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Log in</a>
+          </p>
+        )}
       </div>
 
       <div className="hero-image">

@@ -4,6 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import './NotificationBell.css';
 
+// Notifications whose relatedId is a BorrowRequest: open that transaction directly.
+const REQUEST_TYPES = new Set([
+  'borrow_request', 'borrow_approved', 'borrow_denied', 'payment_success',
+  'handoff_ready', 'handoff_verified', 'borrow_reminder', 'borrow_due',
+  'borrow_overdue', 'late_fee_required', 'late_fee_paid', 'borrow_returned',
+  'return_date_confirmed', 'return_verified'
+]);
+
 function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -11,68 +19,78 @@ function NotificationBell() {
   const dropdownRef = useRef(null);
 
   useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        if (!localStorage.getItem('token')) return;
+        const res = await api.get('/notifications');
+        setNotifications(res.data);
+      } catch {
+        console.error('Failed to fetch notifications');
+      }
+    };
+
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 15000); // Poll every 15s
+    const interval = setInterval(fetchNotifications, 15000); // poll every 15s
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    // Close dropdown if clicked outside
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowDropdown(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchNotifications = async () => {
+  const refresh = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      const res = await api.get('/notifications', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get('/notifications');
       setNotifications(res.data);
-    } catch (err) {
-      console.error('Failed to fetch notifications');
+    } catch {
+      /* ignore */
     }
   };
 
-  const markAsRead = async (id, notification) => {
+  const openNotification = async (notification) => {
     try {
-      const token = localStorage.getItem('token');
-      await api.put(`/notifications/${id}/read`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      fetchNotifications();
-      setShowDropdown(false);
-      if (notification.type.startsWith('borrow_')) {
-        navigate('/lending-dashboard');
-      }
+      await api.put(`/notifications/${notification._id}/read`);
+      refresh();
     } catch (err) {
       console.error(err);
+    }
+
+    setShowDropdown(false);
+
+    if (notification.relatedId && REQUEST_TYPES.has(notification.type)) {
+      navigate(`/borrow/${notification.relatedId}`);
+    } else if (notification.type.startsWith('item_')) {
+      navigate('/lending-dashboard');
     }
   };
 
   const markAllAsRead = async () => {
     try {
-      const token = localStorage.getItem('token');
-      await api.put(`/notifications/read-all`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      fetchNotifications();
+      await api.put('/notifications/read-all');
+      refresh();
     } catch (err) {
       console.error(err);
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <div className="notification-bell-container" ref={dropdownRef}>
-      <div className="bell-icon" onClick={() => setShowDropdown(!showDropdown)}>
+      <div
+        className="bell-icon"
+        role="button"
+        tabIndex={0}
+        aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
+        onClick={() => setShowDropdown(!showDropdown)}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setShowDropdown(!showDropdown)}
+      >
         🔔
         {unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
       </div>
@@ -90,13 +108,13 @@ function NotificationBell() {
               <p className="n-empty">No notifications yet.</p>
             ) : (
               notifications.map((n) => (
-                <div 
-                  key={n._id} 
+                <div
+                  key={n._id}
                   className={`n-item ${n.isRead ? 'read' : 'unread'}`}
-                  onClick={() => markAsRead(n._id, n)}
+                  onClick={() => openNotification(n)}
                 >
                   <p>{n.message}</p>
-                  <span className="n-time">{new Date(n.createdAt).toLocaleDateString()}</span>
+                  <span className="n-time">{new Date(n.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
                 </div>
               ))
             )}

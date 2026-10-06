@@ -1,0 +1,9 @@
+/* Small additions for the landing page (kept separate so existing CSS files stay untouched). */
+.hero-login-hint { margin-top: 16px; font-size: 0.9rem; color: #636e72; }
+.hero-login-hint a { color: #00b894; font-weight: 600; text-decoration: none; }
+.hero-login-hint a:hover { text-decoration: underline; }
+
+.hero a:focus-visible, .how-it-works a:focus-visible, .footer a:focus-visible {
+  outline: 3px solid #55efc4; outline-offset: 3px; border-radius: 4px;
+}
+.hero button:focus-visible { outline: 3px solid #55efc4; outline-offset: 3px; }
