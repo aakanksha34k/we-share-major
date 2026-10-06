@@ -9,7 +9,6 @@ const readUser = () => {
 
 export default function AppHeader() {
   const navigate = useNavigate();
-  const [navOpen, setNavOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const user = readUser();
@@ -40,13 +39,13 @@ export default function AppHeader() {
     <header className="ah">
       <NavLink to="/hub" className="ah-logo">🔗 We Share</NavLink>
 
-      <nav className={`ah-nav ${navOpen ? 'open' : ''}`}>
-        {links.map(([to, label]) => (
-          <NavLink key={to} to={to} onClick={() => setNavOpen(false)}
-            className={({ isActive }) => `ah-link ${isActive ? 'active' : ''}`}>{label}</NavLink>
-        ))}
-        <NavLink to="/sell" onClick={() => setNavOpen(false)} className="ah-sell">+ List item</NavLink>
-      </nav>
+         <nav className="ah-nav">
+     {links.map(([to, label]) => (
+       <NavLink key={to} to={to}
+         className={({ isActive }) => `ah-link ${isActive ? 'active' : ''}`}>{label}</NavLink>
+     ))}
+     <NavLink to="/sell" className="ah-sell">+ List item</NavLink>
+   </nav>
 
       <div className="ah-right">
         <NotificationBell />
@@ -65,7 +64,6 @@ export default function AppHeader() {
             </div>
           )}
         </div>
-        <button className="ah-burger" aria-label="Menu" onClick={() => setNavOpen((o) => !o)}>☰</button>
       </div>
     </header>
   );

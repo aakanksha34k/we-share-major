@@ -25,9 +25,9 @@ function HeroSection() {
           lab gear, and academic tools safely and affordably.
         </p>
         <div className="hero-buttons">
-          <button className="btn-primary" onClick={() => navigate(loggedIn ? '/hub' : '/register')}>
-            {loggedIn ? 'Open your hub' : 'Start Sharing'}
-          </button>
+          <button className="btn-primary" onClick={() => navigate(loggedIn ? '/hub' : '/login')}>
+  {loggedIn ? 'Open your hub' : 'Start Sharing'}
+</button>
           <button className="btn-secondary" onClick={scrollToHow}>See how it works</button>
         </div>
         {!loggedIn && (
