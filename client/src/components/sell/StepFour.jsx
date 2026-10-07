@@ -49,6 +49,7 @@ function StepFour({ formData }) {
             ['Condition', formData.condition],
             ['Price', formData.isFree ? 'Free' : `₹${formData.price}`],
             ['Pickup', formData.pickupLocation],
+            ['Type', formData.listingType === 'sell' ? 'For sale' : 'For lending'],
           ].map(([label, value]) => (
             <div key={label} className="summary-row">
               <span className="summary-label">{label}</span>

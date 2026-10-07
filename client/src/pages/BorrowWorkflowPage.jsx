@@ -436,9 +436,11 @@ function BorrowWorkflowPage() {
               {other?._id && (
                 <button className="bw-link" onClick={() => navigate(`/messages/${other._id}`)}>
                   💬 Message {other.fullName?.split(' ')[0] || 'them'}
-                </button>
+                </button>                               
               )}
             </section>
+
+              <button className="bw-link" onClick={() => navigate(`/complaints?request=${id}`)}>⚠️ Report a problem</button>
 
             {/* ---- OWNER: approve / deny ---- */}
             {request.status === 'pending' && isLender && (
@@ -644,6 +646,12 @@ The return time has passed. The fee is ₹{request.lateFeePerDay} for every 24 h
                 </p>
               </section>
             )}
+            {request.status === 'completed' && (
+  <section className="bw-card bw-card--done">
+    <h2>Completed</h2>
+    <p className="bw-muted">{isBorrower ? 'The item is yours.' : 'The item was sold.'}</p>
+  </section>
+)}
 
             {request.status === 'denied' && (
               <section className="bw-card">
@@ -668,9 +676,9 @@ The return time has passed. The fee is ₹{request.lateFeePerDay} for every 24 h
               <h2>Details</h2>
               <dl className="bw-details">
                 <div><dt>Price</dt><dd>{formatMoney(request.basePrice)}</dd></div>
-                {request.basePrice > 0 && (
-                  <div><dt>Late fee</dt><dd>₹{request.lateFeePerDay} / 24 hrs</dd></div>
-                )}
+                {request.basePrice > 0 && request.type !== 'purchase' && (
+  <div><dt>Late fee</dt><dd>₹{request.lateFeePerDay} / 24 hrs</dd></div>
+)}
                 <div>
                   <dt>Handoff</dt>
                   <dd>
@@ -679,8 +687,12 @@ The return time has passed. The fee is ₹{request.lateFeePerDay} for every 24 h
                       : 'Not chosen yet'}
                   </dd>
                 </div>
-                <div><dt>{request.status === 'handoff_pending' || request.status === 'pending' ? 'Planned return' : 'Return by'}</dt><dd>{formatDateTime(request.returnDate)}</dd></div>
-                <div><dt>Purpose</dt><dd>{request.purpose}</dd></div>
+{request.type !== 'purchase' && (
+  <div>
+    <dt>{request.status === 'handoff_pending' || request.status === 'pending' ? 'Planned return' : 'Return by'}</dt>
+    <dd>{formatDateTime(request.returnDate)}</dd>
+  </div>
+)}                <div><dt>Purpose</dt><dd>{request.purpose}</dd></div>
               </dl>
             </section>
 

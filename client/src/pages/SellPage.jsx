@@ -16,6 +16,7 @@ const emptyForm = {
   photos: [],
   pickupLocation: '',
   detailedLocation: '',
+  listingType: 'lend',
   pickupCoordinates: {
     latitude: null,
     longitude: null
@@ -139,7 +140,9 @@ function SellPage() {
         Number(formData.price) < 0 ||
         Number.isNaN(Number(formData.price))
       )
-    ) {
+    ) 
+      if (step === 3 && formData.listingType === 'sell' && !(Number(formData.price) > 0)) return 'Enter the selling price.';
+      {
       return (
         'Enter a valid non-negative price, ' +
         'or choose Free.'

@@ -1,0 +1,12 @@
+.cp-page { max-width: 760px; margin: 0 auto; padding: 28px 20px 60px; font-family: 'Inter', Arial, sans-serif; color: #2d3436; }
+.cp-page h1 { font-size: 1.7rem; font-weight: 800; } .cp-page h2 { margin: 28px 0 10px; font-size: 1.2rem; }
+.cp-sub { color: #636e72; margin: 4px 0 18px; }
+.cp-card { background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,.05); margin-bottom: 14px; display: grid; gap: 8px; }
+.cp-card label { font-weight: 700; font-size: .9rem; }
+.cp-card select, .cp-card textarea { padding: 11px 13px; border: 1.5px solid #dfe6e9; border-radius: 8px; font: inherit; width: 100%; box-sizing: border-box; }
+.cp-btn { padding: 12px; border: none; border-radius: 9px; background: #00b894; color: #fff; font-weight: 700; cursor: pointer; }
+.cp-btn:disabled { opacity: .6; }
+.cp-alert { padding: 10px 14px; border-radius: 8px; font-size: .9rem; }
+.cp-alert--err { background: #ffeaea; color: #b32525; } .cp-alert--ok { background: #e8f8f5; color: #00664f; }
+.cp-status { margin-left: 10px; padding: 2px 10px; border-radius: 999px; font-size: .75rem; font-weight: 700; background: #fff1c7; color: #8a5a00; text-transform: capitalize; }
+.cp-status--resolved { background: #d4f5e9; color: #006b55; } .cp-status--dismissed { background: #eceff1; color: #546168; }

@@ -70,136 +70,74 @@ const populateRequest = (requestId) =>
 const createBorrowRequest = async (req, res) => {
   try {
     const { itemId, purpose, handoffOptions, returnDate } = req.body;
-
-    if (!itemId) {
-      return res.status(400).json({ message: 'Item is required.' });
-    }
-    if (!purpose || !purpose.trim()) {
-      return res.status(400).json({ message: 'Purpose is required.' });
-    }
-    if (!Array.isArray(handoffOptions) || handoffOptions.length !== 3) {
-      return res.status(400).json({
-        message: 'Please provide exactly 3 handoff date/time options.'
-      });
-    }
-    if (!returnDate) {
-      return res.status(400).json({ message: 'Return date/time is required.' });
-    }
-
-    const parsedOptions = handoffOptions.map((option) => {
-      const value = typeof option === 'object' ? option.dateTime : option;
-      return new Date(value);
-    });
-
-    const now = new Date();
-
-    for (const date of parsedOptions) {
-      if (Number.isNaN(date.getTime())) {
-        return res.status(400).json({
-          message: 'One or more handoff dates are invalid.'
-        });
-      }
-      if (date <= now) {
-        return res.status(400).json({
-          message: 'All handoff options must be in the future.'
-        });
-      }
-    }
-
-    const timestamps = parsedOptions.map((date) => date.getTime());
-
-    if (new Set(timestamps).size !== 3) {
-      return res.status(400).json({
-        message: 'All 3 handoff options must be different.'
-      });
-    }
-
-    const parsedReturnDate = new Date(returnDate);
-
-    if (Number.isNaN(parsedReturnDate.getTime())) {
-      return res.status(400).json({ message: 'Return date/time is invalid.' });
-    }
-    if (parsedReturnDate <= now) {
-      return res.status(400).json({
-        message: 'Return date/time must be in the future.'
-      });
-    }
-    if (parsedReturnDate <= new Date(Math.max(...timestamps))) {
-      return res.status(400).json({
-        message: 'Return date/time must be after all handoff options.'
-      });
-    }
+    if (!itemId) return res.status(400).json({ message: 'Item is required.' });
 
     const item = await Item.findById(itemId);
+    if (!item) return res.status(404).json({ message: 'Item not found.' });
+    const isPurchase = item.listingType === 'sell';
 
-    if (!item) {
-      return res.status(404).json({ message: 'Item not found.' });
+    if (!isPurchase && !purpose?.trim()) return res.status(400).json({ message: 'Purpose is required.' });
+    if (!Array.isArray(handoffOptions) || handoffOptions.length !== 3)
+      return res.status(400).json({ message: 'Please provide exactly 3 handoff date/time options.' });
+    if (!isPurchase && !returnDate) return res.status(400).json({ message: 'Return date/time is required.' });
+
+    const now = new Date();
+    const parsedOptions = handoffOptions.map((o) => new Date(typeof o === 'object' ? o.dateTime : o));
+    if (parsedOptions.some((d) => Number.isNaN(d.getTime())))
+      return res.status(400).json({ message: 'One or more handoff dates are invalid.' });
+    if (parsedOptions.some((d) => d <= now))
+      return res.status(400).json({ message: 'All handoff options must be in the future.' });
+    const timestamps = parsedOptions.map((d) => d.getTime());
+    if (new Set(timestamps).size !== 3)
+      return res.status(400).json({ message: 'All 3 handoff options must be different.' });
+
+    let parsedReturnDate = null;
+    if (!isPurchase) {
+      parsedReturnDate = new Date(returnDate);
+      if (Number.isNaN(parsedReturnDate.getTime())) return res.status(400).json({ message: 'Return date/time is invalid.' });
+      if (parsedReturnDate <= now) return res.status(400).json({ message: 'Return date/time must be in the future.' });
+      if (parsedReturnDate <= new Date(Math.max(...timestamps)))
+        return res.status(400).json({ message: 'Return date/time must be after all handoff options.' });
     }
-    if (String(item.owner) === String(req.user.id)) {
-      return res.status(400).json({ message: 'You cannot borrow your own item.' });
-    }
-    if (item.status !== 'available') {
-      return res.status(400).json({
-        message: 'This item is not available for borrowing.'
-      });
-    }
-    if (!item.pickupLocation) {
-      return res.status(400).json({
-        message: 'Pickup location is not available for this item.'
-      });
-    }
+
+    if (String(item.owner) === String(req.user.id)) return res.status(400).json({ message: 'You cannot request your own item.' });
+    if (item.status !== 'available') return res.status(400).json({ message: 'This item is not available.' });
+    if (!item.pickupLocation) return res.status(400).json({ message: 'Pickup location is not available for this item.' });
 
     const existingRequest = await BorrowRequest.findOne({
-      item: item._id,
-      borrower: req.user.id,
-      status: {
-        $in: [
-          'pending', 'approved', 'return_pending', 'payment_pending', 'paid',
-          'handoff_pending', 'active', 'overdue', 'late_fee_pending',
-          'late_fee_paid'
-        ]
-      }
+      item: item._id, borrower: req.user.id,
+      status: { $in: ['pending', 'approved', 'return_pending', 'payment_pending', 'paid', 'handoff_pending', 'active', 'overdue', 'late_fee_pending', 'late_fee_paid'] }
     });
-
-    if (existingRequest) {
-      return res.status(400).json({
-        message: 'You already have an active request for this item.'
-      });
-    }
+    if (existingRequest) return res.status(400).json({ message: 'You already have an active request for this item.' });
 
     const basePrice = item.isFree ? 0 : Number(item.price || 0);
+    if (isPurchase && basePrice <= 0) return res.status(400).json({ message: 'This item has no selling price.' });
 
     const request = await BorrowRequest.create({
-      item: item._id,
-      borrower: req.user.id,
-      lender: item.owner,
-      purpose: purpose.trim(),
-      basePrice,
-      lateFeePerDay: LATE_FEE_PER_DAY,
+      item: item._id, borrower: req.user.id, lender: item.owner,
+      type: isPurchase ? 'purchase' : 'borrow',
+      purpose: isPurchase ? (purpose?.trim() || 'Purchase') : purpose.trim(),
+      basePrice, lateFeePerDay: LATE_FEE_PER_DAY,
       pickupLocation: snapshotPickup(item),
-      handoffOptions: parsedOptions.map((date) => ({ dateTime: date })),
-      selectedHandoffAt: null,
-      returnDate: parsedReturnDate,
+      handoffOptions: parsedOptions.map((d) => ({ dateTime: d })),
+      selectedHandoffAt: null, returnDate: parsedReturnDate,
       paymentStatus: basePrice > 0 ? 'pending' : 'not_required',
       status: 'pending'
     });
 
     await createNotification({
-      recipient: item.owner,
-      type: 'borrow_request',
-      message:
-        `New borrow request for "${item.title}". ` +
-        `Open it to pick one of 3 handoff times and approve or deny.`,
+      recipient: item.owner, type: 'borrow_request',
+      message: `${isPurchase ? 'New purchase request' : 'New borrow request'} for "${item.title}". Open it to pick one of 3 handoff times and approve or deny.`,
       request
     });
 
     return res.status(201).json({
-      message: 'Borrow request submitted successfully.',
+      message: isPurchase ? 'Purchase request submitted.' : 'Borrow request submitted successfully.',
       request: await populateRequest(request._id)
     });
   } catch (error) {
     console.error('createBorrowRequest error:', error);
-    return res.status(500).json({ message: 'Unable to create borrow request.' });
+    return res.status(500).json({ message: 'Unable to create request.' });
   }
 };
 
@@ -310,8 +248,7 @@ const approveRequest = async (req, res) => {
         message: 'That handoff time has already passed. Pick a later one.'
       });
     }
-    if (!request.returnDate || request.returnDate <= selectedHandoffAt) {
-      return res.status(400).json({
+  if (request.type !== 'purchase' && (!request.returnDate || request.returnDate <= selectedHandoffAt)) {      return res.status(400).json({
         message: 'Return date/time must be after the selected handoff time.'
       });
     }
@@ -500,7 +437,7 @@ const createHandoff = async (req, res) => {
     if (!request.selectedHandoffAt) {
       return res.status(400).json({ message: 'No handoff time has been selected.' });
     }
-    if (!request.returnDate) {
+    if (request.type !== 'purchase' && !request.returnDate) {
       return res.status(400).json({ message: 'Return date has not been confirmed.' });
     }
     if (request.basePrice > 0 && request.paymentStatus !== 'captured') {
@@ -579,6 +516,21 @@ const verifyHandoff = async (req, res) => {
     if (!valid) {
       return res.status(400).json({ message: 'Invalid or expired handoff code.' });
     }
+    if (request.type === 'purchase') {
+  request.handoffStatus = 'verified';
+  request.handoffVerifiedAt = new Date();
+  request.handoffTokenHash = null; request.handoffTokenExpiresAt = null;
+  request.handoffCodeHash = null; request.handoffCodeExpiresAt = null;
+  request.status = 'completed';
+  await request.save();
+
+  const sold = await Item.findById(request.item);
+  if (sold && sold.status === 'reserved') { sold.status = 'sold'; await sold.save(); }
+
+  await createNotification({ recipient: request.lender, type: 'handoff_verified', message: 'Sale completed. The buyer has the item.', request });
+  await createNotification({ recipient: request.borrower, type: 'handoff_verified', message: 'Purchase completed. The item is yours.', request });
+  return res.json({ message: 'Purchase completed.', request: await populateRequest(request._id) });
+}
 
 const handoffAt = new Date();
 

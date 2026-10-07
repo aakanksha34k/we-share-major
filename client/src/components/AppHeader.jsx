@@ -64,6 +64,7 @@ export default function AppHeader() {
               </div>
               <button role="menuitem" onClick={() => { setMenuOpen(false); navigate('/profile'); }}>My profile</button>
               <button role="menuitem" onClick={() => { setMenuOpen(false); navigate('/help'); }}>Help</button>
+              <button role="menuitem" onClick={() => { setMenuOpen(false); navigate('/complaints'); }}>Report a problem</button>
               <button role="menuitem" className="ah-logout" onClick={logout}>Log out</button>
             </div>
           )}

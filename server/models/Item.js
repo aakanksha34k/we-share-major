@@ -28,6 +28,11 @@ const itemSchema = new mongoose.Schema(
       ]
     },
 
+    listingType: { 
+      type: String, 
+      enum: ['lend', 'sell'], 
+      default: 'lend' },
+
     description: {
       type: String,
       trim: true,
@@ -103,7 +108,8 @@ const itemSchema = new mongoose.Schema(
         'lent',
         'draft',
         'removed',
-        'rejected'
+        'rejected',
+        'sold'
       ],
       default: 'pending'
     },

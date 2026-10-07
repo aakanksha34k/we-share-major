@@ -9,9 +9,9 @@ const ITEM_FIELDS = [
   'photos',
   'price',
   'isFree',
-  'openToTrades',
   'pickupLocation',
   'detailedLocation',
+  'listingType',
   'pickupCoordinates'
 ];
 
@@ -97,6 +97,8 @@ const validatePublish = (data) => {
     errors.push('Maximum 6 photos are allowed');
   }
 
+    if (data.listingType === 'sell' && !(Number(data.price) > 0)) errors.push('A selling price above 0 is required');
+
   return errors;
 };
 
@@ -150,8 +152,8 @@ const normaliseItemData = (data) => {
   }
 
   result.isFree = Boolean(result.isFree);
-  result.openToTrades = Boolean(result.openToTrades);
-
+    if ('listingType' in result) result.listingType = result.listingType === 'sell' ? 'sell' : 'lend';
+  if (result.listingType === 'sell') result.isFree = false;
   result.price = result.isFree
     ? 0
     : Number(result.price || 0);

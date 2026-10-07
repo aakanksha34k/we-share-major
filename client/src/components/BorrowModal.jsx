@@ -15,6 +15,7 @@ export default function BorrowModal({ item, onClose, onSuccess }) {
   const [returnDate, setReturnDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const isSale = item.listingType === 'sell';
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && !loading && onClose();
@@ -30,38 +31,41 @@ export default function BorrowModal({ item, onClose, onSuccess }) {
   const setOption = (i, v) => setOptions((p) => p.map((o, idx) => (idx === i ? v : o)));
 
   const submit = async (e) => {
-    e.preventDefault();
-    setError('');
+  e.preventDefault();
+  setError('');
 
-    if (!purpose.trim()) return setError('Please tell the owner why you need this item.');
-    if (options.some((o) => !o)) return setError('Please choose all 3 handoff times.');
-    if (!returnDate) return setError('Please choose when you will return it.');
+  if (!isSale && !purpose.trim()) return setError('Please tell the owner why you need this item.');
+  if (options.some((o) => !o)) return setError('Please choose all 3 handoff times.');
+  if (!isSale && !returnDate) return setError('Please choose when you will return it.');
 
-    const handoffs = options.map((o) => new Date(o));
-    const ret = new Date(returnDate);
-    const now = Date.now();
+  const handoffs = options.map((o) => new Date(o));
+  const ret = isSale ? null : new Date(returnDate);
+  const now = Date.now();
 
-    if (new Set(handoffs.map((d) => d.getTime())).size !== 3)
-      return setError('The 3 handoff times must be different.');
-    if (handoffs.some((d) => d.getTime() <= now))
-      return setError('Handoff times must be in the future.');
+  if (new Set(handoffs.map((d) => d.getTime())).size !== 3)
+    return setError('The 3 handoff times must be different.');
+  if (handoffs.some((d) => d.getTime() <= now))
+    return setError('Handoff times must be in the future.');
+
+  if (!isSale) {
     if (ret.getTime() <= Math.max(...handoffs.map((d) => d.getTime())))
       return setError('Return time must be after all 3 handoff times.');
+  }
 
-    try {
-      setLoading(true);
-      const { data } = await api.post('/borrow', {
-        itemId: item._id,
-        purpose: purpose.trim(),
-        handoffOptions: handoffs.map((d) => ({ dateTime: d.toISOString() })),
-        returnDate: ret.toISOString()
-      });
-      onSuccess?.(data.request);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Unable to send the request.');
-      setLoading(false);
-    }
-  };
+  try {
+    setLoading(true);
+    const { data } = await api.post('/borrow', {
+      itemId: item._id,
+      purpose: purpose.trim(),
+      handoffOptions: handoffs.map((d) => ({ dateTime: d.toISOString() })),
+      returnDate: ret ? ret.toISOString() : undefined
+    });
+    onSuccess?.(data.request);
+  } catch (err) {
+    setError(err.response?.data?.message || 'Unable to send the request.');
+    setLoading(false);
+  }
+};
 
   const min = nowInput();
 
@@ -70,7 +74,7 @@ export default function BorrowModal({ item, onClose, onSuccess }) {
       <div className="bm-dialog" role="dialog" aria-modal="true" aria-labelledby="bm-title">
         <div className="bm-header">
           <div>
-            <h2 id="bm-title">Request to borrow</h2>
+            <h2 id="bm-title">{isSale ? 'Buy this item' : 'Request to borrow'}</h2>
             <p>{item.title}</p>
           </div>
           <button type="button" className="bm-close" onClick={onClose} disabled={loading} aria-label="Close">×</button>
@@ -78,17 +82,18 @@ export default function BorrowModal({ item, onClose, onSuccess }) {
 
         <div className="bm-summary">
           <span><strong>Price:</strong> {item.isFree ? 'Free' : formatMoney(item.price)}</span>
-          <span><strong>Late fee:</strong> ₹{LATE_FEE} / 24 hrs</span>
-          <span><strong>Meet at:</strong> {item.pickupLocation || 'To be agreed in chat'}</span>
+{!isSale && <span><strong>Late fee:</strong> ₹{LATE_FEE} / 24 hrs</span>}          <span><strong>Meet at:</strong> {item.pickupLocation || 'To be agreed in chat'}</span>
         </div>
 
         <form onSubmit={submit}>
+          {!isSale && (
           <div className="bm-field">
             <label htmlFor="bm-purpose">Why do you need it?</label>
             <textarea id="bm-purpose" rows={3} maxLength={1000} value={purpose}
               onChange={(e) => setPurpose(e.target.value)} disabled={loading}
               placeholder="e.g. Need it for my lab exam on Friday" />
           </div>
+          )}
 
           <fieldset className="bm-field">
             <legend>3 times you could meet the owner</legend>
@@ -102,6 +107,7 @@ export default function BorrowModal({ item, onClose, onSuccess }) {
             ))}
           </fieldset>
 
+          {!isSale && (
           <div className="bm-field">
             <label htmlFor="bm-return">I will return it by</label>
             <input id="bm-return" type="datetime-local" min={min} value={returnDate}
@@ -111,13 +117,14 @@ export default function BorrowModal({ item, onClose, onSuccess }) {
               Late returns cost ₹{LATE_FEE} per 24 hours.
             </p>
           </div>
+          )}
 
           {error && <div className="bm-error" role="alert">{error}</div>}
 
           <div className="bm-actions">
             <button type="button" className="bm-btn bm-btn--ghost" onClick={onClose} disabled={loading}>Cancel</button>
             <button type="submit" className="bm-btn bm-btn--primary" disabled={loading}>
-              {loading ? 'Sending…' : 'Send request'}
+              {loading ? 'Sending…' : isSale ? 'Send purchase request' : 'Send request'}
             </button>
           </div>
         </form>

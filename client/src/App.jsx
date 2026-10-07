@@ -14,6 +14,7 @@ import ItemDetailPage from './pages/ItemDetailPage';
 import LendingDashboard from './pages/LendingDashboard';
 import MessagesPage from './pages/MessagesPage';
 import ProfilePage from './pages/ProfilePage';
+import ComplaintPage from './pages/ComplaintPage';
 import AdminDashboard from './pages/AdminDashboard';
 import HubSelection from './pages/HubSelection';
 import DigitalDashboard from './pages/DigitalDashboard';
@@ -46,6 +47,7 @@ const protectedRoutes = [
   ['/borrow/:id', <BorrowWorkflowPage key="borrow" />],
   ['/handoff/:id', <BorrowWorkflowPage key="handoff" />],
   ['/messages', <MessagesPage key="messages" />],
+  ['/complaints', <ComplaintPage key="complaints" />],
   ['/messages/:userId', <MessagesPage key="messages-user" />],
   ['/profile', <ProfilePage key="profile" />]
 ];

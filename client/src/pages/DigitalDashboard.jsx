@@ -1,8 +1,8 @@
 // client/src/pages/DigitalDashboard.jsx
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import api from '../api';
-import DigitalUploadModal, { formatSize } from '../components/DigitalUploadModal';
+import { useState, useEffect, useCallback } from 'react';
+import api from '../api'; 
+import UploadResourceModal from '../components/UploadResourceModal';
+
 import './DigitalDashboard.css';
 import './DigitalExtras.css';
 
@@ -60,6 +60,22 @@ function DigitalDashboard() {
   const requestRef = useRef(0);
   const noticeTimer = useRef(null);
 
+const loadResources = useCallback(async () => {
+  try { const { data } = await api.get('/digital'); setResources(data); }
+  catch (e) { console.error('Failed to load resources', e); }
+}, []);
+useEffect(() => { loadResources(); }, [loadResources]);
+
+const download = async (item) => {
+  try {
+    const res = await api.get(`/digital/${item._id}/download`, { responseType: 'blob' });
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url; a.download = item.fileName || item.title; a.click();
+    URL.revokeObjectURL(url);
+    loadResources();
+  } catch { alert('Download failed. Please try again.'); }
+};
   const notify = (message, type = 'success') => {
     clearTimeout(noticeTimer.current);
     setNotice({ message, type });
@@ -394,6 +410,7 @@ function DigitalDashboard() {
                       </div>
                       <div className="digital-card-downloads" title="Downloads">⬇ {r.downloads || 0}</div>
                     </div>
+                       <button className="btn-upload" style={{ width: '100%', marginTop: 12 }} onClick={() => download(item)}>⬇ Download</button>
 
                     <div className="dd-card-actions">
                       <button
@@ -414,9 +431,16 @@ function DigitalDashboard() {
                         </button>
                       )}
                     </div>
+                       <button className="btn-upload" style={{ width: '100%', marginTop: 12 }} onClick={() => download(item)}>⬇ Download</button>
                   </div>
                 </div>
               ))}
+                 {showUpload && (
+     <UploadResourceModal
+       onClose={() => setShowUpload(false)}
+       onDone={(msg) => { setShowUpload(false); alert(msg); }}
+     />
+   )}
             </div>
 
             {!loading && !error && page < pages && (

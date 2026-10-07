@@ -101,6 +101,16 @@ const borrowRequestSchema = new mongoose.Schema(
       default: null
     },
 
+    lastOverdueReminderDay: { 
+      type: String, 
+      default: null 
+    },
+
+    type: { 
+      type: String, 
+      enum: ['borrow', 'purchase'], 
+      default: 'borrow' },
+
     requestedAt: {
       type: Date,
       default: Date.now
@@ -140,6 +150,7 @@ plannedReturnDate: { type: Date, default: null },
         'late_fee_pending',
         'late_fee_paid',
         'returned',
+        'completed',
         'denied'
       ],
       default: 'pending',

@@ -61,6 +61,7 @@ function ItemDetailPage() {
               {item.condition}
             </span>
             {item.isFree && <span className="badge free">FREE</span>}
+            {item.listingType === 'sell' && <span className="badge trade">FOR SALE</span>}
           </div>
         </div>
 
@@ -130,7 +131,7 @@ function ItemDetailPage() {
                 className="btn-borrow"
                 onClick={() => setShowModal(true)}
               >
-                📋 Request to Borrow
+                {item.listingType === 'sell' ? '🛒 Buy this item' : '📋 Request to Borrow'}
               </button>
               <button 
                 className="btn-message"
@@ -175,6 +176,9 @@ function ItemDetailPage() {
               ⚠️ This item is currently lent out and not available.
             </div>
           )}
+          {item.status === 'sold' && (
+  <div className="detail-unavailable">This item has been sold.</div>
+)}
         </div>
       </div>
 

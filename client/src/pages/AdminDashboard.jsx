@@ -8,6 +8,7 @@ const API = '/admin';
 
 function AdminDashboard() {
   const [stats, setStats] = useState(null);
+  const [complaints, setComplaints] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [allItems, setAllItems] = useState([]);
   const [pendingItems, setPendingItems] = useState([]);
@@ -55,9 +56,13 @@ const [digitalTotal, setDigitalTotal] = useState(0);  const [activeTab, setActiv
           api.get(`${API}/items/pending`, config),
           api.get(`${API}/requests`, config),
           api.get(`${API}/messages`, config),
+          api.get('/complaints/admin/all', config),
+          api.get('/digital/admin/all', config),
           api.get('/digital', { params: { limit: 100, sort: 'newest' } }),
         ]);
 
+        setDigitalResources(digitalRes.data);
+        setComplaints(complaintsRes.data);
         setDigitalResources(digitalRes.data.resources);
         setDigitalTotal(digitalRes.data.total);
         setStats(statsRes.data);
@@ -161,6 +166,15 @@ const [digitalTotal, setDigitalTotal] = useState(0);  const [activeTab, setActiv
   }
 };
 
+const handleComplaint = async (id, status) => {
+  const adminNote = window.prompt('Note for the reporter (optional):') ?? '';
+  try {
+    const { data } = await api.patch(`/complaints/admin/${id}`, { status, adminNote });
+    setComplaints(complaints.map((c) => (c._id === id ? { ...c, ...data } : c)));
+    showToast('Complaint updated');
+  } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+};
+
   // ── Announcement ──
   const handleSendAnnouncement = async () => {
     if (!announcement.trim()) return;
@@ -174,6 +188,19 @@ const [digitalTotal, setDigitalTotal] = useState(0);  const [activeTab, setActiv
     }
     setAnnounceSending(false);
   };
+
+  const handleDigitalStatus = async (id, status) => {
+  try {
+    await api.patch(`/digital/${id}/status`, { status });
+    setDigitalResources(digitalResources.map((r) => (r._id === id ? { ...r, status } : r)));
+    showToast(`Resource ${status}`);
+  } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+};
+const handleDigitalDelete = async (id) => {
+  if (!window.confirm('Delete this resource?')) return;
+  try { await api.delete(`/digital/${id}`); setDigitalResources(digitalResources.filter((r) => r._id !== id)); showToast('Deleted'); }
+  catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
+};
 
   // ── Filtering helpers ──
   const filteredUsers = allUsers.filter(u =>
@@ -218,6 +245,7 @@ const [digitalTotal, setDigitalTotal] = useState(0);  const [activeTab, setActiv
     { id: 'pending', icon: '⏳', label: 'Pending Approval' },
     { id: 'requests', icon: '🔄', label: 'Borrow Requests' },
     { id: 'messages', icon: '💬', label: 'Messages' },
+    { id: 'complaints', icon: '⚠️', label: 'Complaints' },
     { id: 'announce', icon: '📢', label: 'Announcements' },
   ];
 
@@ -608,6 +636,35 @@ const [digitalTotal, setDigitalTotal] = useState(0);  const [activeTab, setActiv
             </div>
           </div>
         )}
+
+        {activeTab === 'complaints' && (
+  <div className="adm-tab-content">
+    <div className="adm-page-header"><h1>Complaints</h1><p>{complaints.filter((c) => c.status === 'open').length} open</p></div>
+    <div className="adm-card">
+      <table className="adm-table">
+        <thead><tr><th>Type</th><th>From</th><th>Against</th><th>Item</th><th>Details</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          {complaints.map((c) => (
+            <tr key={c._id}>
+              <td className="adm-td-bold">{c.category.replace(/_/g, ' ')}</td>
+              <td>{c.reporter?.fullName}</td>
+              <td>{c.against?.fullName || '—'}{c.against?.isBanned && ' (banned)'}</td>
+              <td>{c.borrowRequest?.item?.title || '—'}</td>
+              <td className="adm-td-truncate" title={c.description}>{c.description}</td>
+              <td><span className={`adm-badge adm-badge--${c.status === 'open' ? 'pending' : c.status === 'resolved' ? 'approved' : 'rejected'}`}>{c.status.replace('_', ' ')}</span></td>
+              <td><div className="adm-action-group">
+                <button className="adm-btn" title="In review" onClick={() => handleComplaint(c._id, 'in_review')}>👀</button>
+                <button className="adm-btn adm-btn--approve" title="Resolve" onClick={() => handleComplaint(c._id, 'resolved')}>✅</button>
+                <button className="adm-btn adm-btn--reject" title="Dismiss" onClick={() => handleComplaint(c._id, 'dismissed')}>❌</button>
+              </div></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {complaints.length === 0 && <p className="adm-empty">No complaints</p>}
+    </div>
+  </div>
+)}
 
         {/* ═══ MESSAGES TAB ═══ */}
         {activeTab === 'messages' && (

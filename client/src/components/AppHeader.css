@@ -28,6 +28,7 @@
 
 /* The header replaces each page's old top bar */
 .hub-topbar, .dashboard-topbar, .detail-header, .sell-header, .bw-topbar, .profile-header { display: none !important; }
-.digital-topbar { display: none !important; }
+.digital-topbar-left-brand, .digital-topbar .btn-hub, .digital-user-avatar { display: none !important; }
+.digital-topbar { justify-content: flex-end; }
 .messages-page { height: calc(100vh - 60px); }
 .adm-page, .adm-sidebar { min-height: calc(100vh - 60px); }

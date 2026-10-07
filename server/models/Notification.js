@@ -7,7 +7,7 @@ const notificationSchema = new mongoose.Schema({
     enum: [
       'borrow_request', 'borrow_approved', 'borrow_denied', 'payment_success',
       'handoff_ready', 'handoff_verified', 'borrow_reminder', 'borrow_due',
-      'borrow_overdue', 'late_fee_required', 'late_fee_paid', 'borrow_returned',
+      'borrow_overdue', 'complaint_update', 'late_fee_required', 'late_fee_paid', 'borrow_returned',
       'new_message', 'item_approved', 'item_rejected', 'announcement',
       // added so borrowController notifications pass validation
       'return_date_confirmed', 'return_verified'

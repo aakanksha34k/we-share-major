@@ -1,6 +1,7 @@
 const BorrowRequest = require('../models/BorrowRequest');
 const Notification = require('../models/Notification');
 const { applyLateFee } = require('../utils/lateFee');
+const dayKey = new Date(now.getTime() + IST_MS).toISOString().slice(0, 10);
 
 const startBorrowReminderJob = () => {
   const run = async () => {
@@ -44,11 +45,11 @@ const startBorrowReminderJob = () => {
 });
 for (const r of overdue) {
   const { daysLate, outstanding } = applyLateFee(r, now);
-  if (!r.overdueNotificationSent) {
-    await Notification.create({ recipient: r.borrower, type: 'borrow_overdue', message: `Your borrowed resource is overdue (${daysLate} day${daysLate > 1 ? 's' : ''} charged). Outstanding late fee: ₹${outstanding}.`, relatedId: r._id });
-    await Notification.create({ recipient: r.lender, type: 'borrow_overdue', message: `A borrowed resource is overdue (${daysLate} day${daysLate > 1 ? 's' : ''} charged). Outstanding late fee: ₹${outstanding}.`, relatedId: r._id });
-    r.overdueNotificationSent = true;
-  }
+  if (outstanding > 0 && r.lastOverdueReminderDay !== dayKey) {
+  await Notification.create({ recipient: r.borrower, type: 'borrow_overdue', message: `Reminder: your borrowed item is overdue. Unpaid late fee: ₹${outstanding} (${daysLate} day${daysLate > 1 ? 's' : ''}). Pay and return it.`, relatedId: r._id });
+  await Notification.create({ recipient: r.lender, type: 'borrow_overdue', message: `Your item is still not returned. Unpaid late fee from the borrower: ₹${outstanding} (${daysLate} day${daysLate > 1 ? 's' : ''}). You can report it from the transaction page.`, relatedId: r._id });
+  r.lastOverdueReminderDay = dayKey;
+}
   await r.save();
 }
     } catch (error) {

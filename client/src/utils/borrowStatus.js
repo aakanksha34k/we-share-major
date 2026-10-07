@@ -20,6 +20,7 @@ export const toLocalInput = (value) => {
 };
 
 const REQUEST_LABELS = {
+    completed: 'Completed',
   pending: 'Waiting for owner',
   approved: 'Approved',
   return_pending: 'Confirm return date',
@@ -35,6 +36,7 @@ const REQUEST_LABELS = {
 };
 
 const ITEM_LABELS = {
+    sold: 'Sold',
   pending: 'Awaiting admin approval',
   available: 'Available',
   reserved: 'Reserved',
@@ -45,6 +47,8 @@ const ITEM_LABELS = {
 };
 
 const TONES = {
+    completed: 'green', 
+    sold: 'grey',
   pending: 'amber',
   approved: 'blue',
   return_pending: 'amber',
@@ -76,16 +80,19 @@ export const statusTone = (status, kind = 'request') =>
 export const getSteps = (request) => {
   const free = !(Number(request.basePrice) > 0);
 
-  const steps = [
-    { key: 'requested', label: 'Requested' },
-    { key: 'approved', label: 'Approved' },
-    ...(free ? [] : [{ key: 'payment', label: 'Payment' }]),
-    { key: 'handoff', label: 'Handoff' },
-    { key: 'borrowed', label: 'Borrowed' },
-    { key: 'returned', label: 'Returned' }
-  ];
+const purchase = request.type === 'purchase';
+const steps = [
+  { key: 'requested', label: 'Requested' },
+  { key: 'approved', label: 'Approved' },
+  ...(free ? [] : [{ key: 'payment', label: 'Payment' }]),
+  { key: 'handoff', label: 'Handoff' },
+  ...(purchase
+    ? [{ key: 'completed', label: 'Completed' }]
+    : [{ key: 'borrowed', label: 'Borrowed' }, { key: 'returned', label: 'Returned' }])
+];
 
   const keyByStatus = {
+    completed: 'completed',
     pending: 'requested',
     approved: 'approved',
     return_pending: 'approved',
@@ -104,7 +111,7 @@ export const getSteps = (request) => {
   return steps.map((step, index) => ({
     ...step,
     state:
-      request.status === 'returned'
+      request.status === 'returned' || request.status === 'completed'
         ? 'done'
         : index < current
           ? 'done'
@@ -121,6 +128,10 @@ export const nextStep = (role, r) => {
   const fee = `₹${Number(r.lateFeeAmount || 0)}`;
 
   switch (r.status) {
+    case 'completed': 
+    return borrower
+        ? 'All done. The item is yours.' 
+        : 'Sold. The buyer has the item.';
     case 'pending':
       return borrower
         ? 'Waiting for the owner to accept one of your 3 proposed times.'

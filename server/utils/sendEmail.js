@@ -2,35 +2,30 @@ const nodemailer = require('nodemailer');
 
 const sendEmail = async ({ to, subject, text, html }) => {
   try {
-    // Note: In production, configure EMAIL_USER and EMAIL_PASS in your .env file
-    // For local development, this will log the email content if credentials are not provided.
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.log('\n--- EMAIL SIMULATION ---');
-      console.log(`To: ${to}`);
-      console.log(`Subject: ${subject}`);
-      console.log(`Text: ${text}`);
-      console.log('------------------------\n');
+    // Preferred on Render: HTTPS API (SMTP ports are blocked on free plans)
+    if (process.env.BREVO_API_KEY && process.env.EMAIL_FROM) {
+      const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': process.env.BREVO_API_KEY, 'Content-Type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          sender: { name: 'We Share', email: process.env.EMAIL_FROM },
+          to: [{ email: to }],
+          subject,
+          textContent: text,
+          htmlContent: html || `<p>${text}</p>`
+        })
+      });
+      if (!r.ok) { console.error('Brevo error:', r.status, await r.text()); return false; }
       return true;
     }
 
-    const transporter = nodemailer.createTransport({
-      service: 'gmail', // Use your preferred email service
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.log('\n--- EMAIL SIMULATION ---\nTo:', to, '\nSubject:', subject, '\n', text, '\n------------------------\n');
+      return true;
+    }
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to,
-      subject,
-      text,
-      html
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Email sent: ' + info.response);
+    const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
+    await transporter.sendMail({ from: process.env.EMAIL_USER, to, subject, text, html });
     return true;
   } catch (error) {
     console.error('Error sending email:', error);

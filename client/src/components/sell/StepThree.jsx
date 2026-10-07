@@ -4,13 +4,28 @@ import './Steps.css';
 function StepThree({ formData, updateForm }) {
   return (
     <div className="step-container">
+      <div className="form-group">
+  <label>What do you want to do with this item?</label>
+  <div className="condition-buttons">
+    <button type="button" className={`condition-btn ${formData.listingType !== 'sell' ? 'active' : ''}`}
+      onClick={() => updateForm({ listingType: 'lend' })}>Lend it (returned later)</button>
+    <button type="button" className={`condition-btn ${formData.listingType === 'sell' ? 'active' : ''}`}
+      onClick={() => updateForm({ listingType: 'sell', isFree: false })}>Sell it (one-time)</button>
+  </div>
+  <p className="form-hint">
+    {formData.listingType === 'sell'
+      ? 'The buyer pays the full price and keeps the item. No return, no late fees.'
+      : 'The borrower pays your price, returns the item, and pays a late fee if overdue.'}
+  </p>
+</div>
       <div className="step-main">
         <h2>Pricing & Final Review</h2>
         <p className="step-subtitle">Set your price and exchange preferences.</p>
 
         {/* Price Input */}
+        
         <div className="form-group">
-          <label>Set your price</label>
+          <label>{formData.listingType === 'sell' ? 'Selling price' : 'Price per borrow'}</label>
           <div className="price-input-box">
             <span className="price-symbol">₹</span>
             <input
@@ -26,10 +41,10 @@ function StepThree({ formData, updateForm }) {
 
         {/* Free Toggle */}
         <div className="form-group toggle-group">
-          <div>
+          {formData.listingType !== 'sell' && ( <div>
             <label>Give away for free</label>
             <p className="form-hint">Item will be listed as FREE</p>
-          </div>
+          </div> )}
           <div
             className={`toggle ${formData.isFree ? 'on' : ''}`}
             onClick={() => updateForm({ isFree: !formData.isFree, price: 0 })}

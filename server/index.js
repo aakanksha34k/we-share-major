@@ -184,6 +184,15 @@ app.use(
   require('./routes/adminRoutes')
 );
 
+app.use(
+  '/api/digital', 
+  require('./routes/digitalRoutes')
+);
+
+app.use(
+  '/api/complaints', 
+  require('./routes/complaintRoutes'));
+
 /*
 |--------------------------------------------------------------------------
 | Health check

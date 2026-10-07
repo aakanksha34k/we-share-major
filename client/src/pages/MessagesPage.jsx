@@ -168,6 +168,8 @@ function MessagesPage() {
               {activeUser.fullName?.charAt(0).toUpperCase()}
             </div>
             <h3>{activeUser.fullName}</h3>
+              <button className="btn-back-nav" style={{ marginLeft: 'auto', fontSize: '.85rem' }}
+    onClick={() => navigate(`/complaints?user=${activeUser._id}`)}>⚠️ Report</button>
           </div>
           
           <div className="chat-messages">

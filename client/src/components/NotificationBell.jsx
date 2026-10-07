@@ -52,6 +52,10 @@ function NotificationBell() {
       /* ignore */
     }
   };
+    if (notification.type === 'complaint_update') {
+    navigate(notification.relatedId ? `/borrow/${notification.relatedId}` : '/complaints');
+    return;
+  }
 
   const openNotification = async (notification) => {
     try {
