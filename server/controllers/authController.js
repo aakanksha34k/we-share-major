@@ -296,5 +296,7 @@ const googleLogin = async (req, res) => {
 module.exports = {
   register,
   login,
-  googleLogin
+  googleLogin,
+  forgotPassword,
+  resetPassword
 };
