@@ -13,8 +13,7 @@ function HeroSection() {
   return (
     <section id="hero" className="hero">
       <div className="hero-text">
-        <p className="hero-tag">— STUDENT TO STUDENT SHARING</p>
-        <p className="ak">Made for students, by students.</p>
+        <p className="hero-tag">— STUDENT TO STUDENT SHARING. Made for students, by students. </p>
         <h1>
           Share more. <br />
           <span className="highlight">Spend less.</span> <br />
@@ -38,13 +37,15 @@ function HeroSection() {
       </div>
 
       <div className="hero-image">
-        <div className="hero-image-container" style={{ width: '100%', height: '100%', borderRadius: '16px', overflow: 'hidden' }}>
-          <img src="/landing_image.png" alt="Students sharing resources" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        </div>
-        <div className="hero-badge">
-          ✅ Campus ID Only — Verified Users
-        </div>
-      </div>
+  <div className="hero-art" aria-hidden="true">
+    <div className="hero-blob" />
+    <div className="art-card art-card--a"><span>📚</span><div><b>Organic Chemistry</b><small>Good · ₹120</small></div></div>
+    <div className="art-card art-card--b"><span>🔬</span><div><b>Microscope</b><small>Lab gear · Free</small></div></div>
+    <div className="art-card art-card--c"><span>🧮</span><div><b>Scientific Calculator</b><small>Lend · ₹30</small></div></div>
+    <div className="art-pill">🔐 QR-verified handoffs</div>
+  </div>
+  <div className="hero-badge">✅ Gmail-verified students only</div>
+</div>
     </section>
   );
 }

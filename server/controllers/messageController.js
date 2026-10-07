@@ -1,4 +1,6 @@
 const Message = require('../models/Message');
+const Notification = require('../models/Notification'); // top of file
+const User = require('../models/User');
 
 const sendMessage = async (req, res) => {
   try {
@@ -17,8 +19,20 @@ const sendMessage = async (req, res) => {
     });
 
     await newMessage.save();
+    const recipient = await User.findById(receiverId).select('_id');
+if (!recipient) return res.status(404).json({ message: 'Recipient not found' });
 
     res.status(201).json(newMessage);
+    const alreadyUnread = await Notification.exists({
+  recipient: receiverId, type: 'new_message', relatedId: req.user._id, isRead: false
+});
+if (!alreadyUnread) {
+  await Notification.create({
+    recipient: receiverId, type: 'new_message',
+    message: 'You have a new message. Open it to reply.',
+    relatedId: req.user._id
+  });
+}
   } catch (err) {
     console.error('Error sending message:', err);
 

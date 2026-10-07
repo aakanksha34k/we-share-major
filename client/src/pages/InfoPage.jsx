@@ -21,8 +21,7 @@ const PAGES = {
         'When someone requests it, open “My dashboard” → “Incoming requests” and review it.',
         'At the meeting, generate a pickup QR for the borrower. When it comes back, scan their return QR.'
       ] },
-      { h: 'On the login page tap “Forgot password?”, enter your Gmail and follow the link we email you.', p: ['Password reset by email is not available yet. If you signed up with Google, use “Continue with Google” on the login page. Otherwise contact support.'] },
-      { h: 'Late returns', p: [`A late fee of ₹${LATE_FEE} per day applies after the return time. You pay it in the app before the owner can close the return.`] }
+{ h: 'Forgot your password?', p: ['On the login page tap “Forgot password?”, enter your Gmail and follow the link we email you. If you signed up with Google, use “Continue with Google” instead.'] },      { h: 'Late returns', p: [`A late fee of ₹${LATE_FEE} per day applies after the return time. You pay it in the app before the owner can close the return.`] }
     ]
   },
   safety: {
@@ -63,7 +62,7 @@ const PAGES = {
       ['How do I know the item changed hands?', 'Each handoff and return is confirmed with a one-time QR or 6-digit code that expires in minutes.'],
       ['What if I return something late?', `A late fee of ₹${LATE_FEE} per day applies. It is shown on the transaction page.`],
       ['Is my payment real?', 'Not yet. Payments run in test mode, so no real money is taken.'],
-      ['Can I list digital notes?', 'The Digital Library is a preview. Uploading is coming soon.']
+      ['Can I list digital notes?', 'Yes. Open the Digital Library and tap “Upload PDF”. Only share material you have the right to share.']
     ]
   },
   privacy: {

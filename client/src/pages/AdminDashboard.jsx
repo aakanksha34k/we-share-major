@@ -49,29 +49,28 @@ const [digitalTotal, setDigitalTotal] = useState(0);  const [activeTab, setActiv
 
         const config = getConfig();
 
-        const [statsRes, usersRes, itemsRes, pendingRes, requestsRes, messagesRes, digitalRes] = await Promise.all([
-          api.get(`${API}/stats`, config),
-          api.get(`${API}/users`, config),
-          api.get(`${API}/items`, config),
-          api.get(`${API}/items/pending`, config),
-          api.get(`${API}/requests`, config),
-          api.get(`${API}/messages`, config),
-          api.get('/complaints/admin/all', config),
-          api.get('/digital/admin/all', config),
-          api.get('/digital', { params: { limit: 100, sort: 'newest' } }),
-        ]);
+        const [statsRes, usersRes, itemsRes, pendingRes, requestsRes, messagesRes, complaintsRes, digitalRes] =
+  await Promise.all([
+    api.get(`${API}/stats`),
+    api.get(`${API}/users`),
+    api.get(`${API}/items`),
+    api.get(`${API}/items/pending`),
+    api.get(`${API}/requests`),
+    api.get(`${API}/messages`),
+    api.get('/complaints/admin/all'),
+    api.get('/digital/admin/all')
+  ]);
 
-        setDigitalResources(digitalRes.data);
-        setComplaints(complaintsRes.data);
-        setDigitalResources(digitalRes.data.resources);
-        setDigitalTotal(digitalRes.data.total);
-        setStats(statsRes.data);
-        setAllUsers(usersRes.data);
-        setAllItems(itemsRes.data);
-        setPendingItems(pendingRes.data);
-        setAllRequests(requestsRes.data);
-        setAllMessages(messagesRes.data);
-        setLoading(false);
+setStats(statsRes.data);
+setAllUsers(usersRes.data);
+setAllItems(itemsRes.data);
+setPendingItems(pendingRes.data);
+setAllRequests(requestsRes.data);
+setAllMessages(messagesRes.data);
+setComplaints(complaintsRes.data);
+setDigitalResources(digitalRes.data);
+setDigitalTotal(digitalRes.data.length);
+setLoading(false);
       } catch (err) {
         console.error('Error fetching admin data:', err);
         setError('Failed to load admin dashboard.');
@@ -189,18 +188,6 @@ const handleComplaint = async (id, status) => {
     setAnnounceSending(false);
   };
 
-  const handleDigitalStatus = async (id, status) => {
-  try {
-    await api.patch(`/digital/${id}/status`, { status });
-    setDigitalResources(digitalResources.map((r) => (r._id === id ? { ...r, status } : r)));
-    showToast(`Resource ${status}`);
-  } catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
-};
-const handleDigitalDelete = async (id) => {
-  if (!window.confirm('Delete this resource?')) return;
-  try { await api.delete(`/digital/${id}`); setDigitalResources(digitalResources.filter((r) => r._id !== id)); showToast('Deleted'); }
-  catch (err) { showToast(err.response?.data?.message || 'Failed', 'error'); }
-};
 
   // ── Filtering helpers ──
   const filteredUsers = allUsers.filter(u =>
@@ -422,7 +409,7 @@ const handleDigitalDelete = async (id) => {
                               <button className="adm-btn adm-btn--delete" onClick={() => handleDeleteUser(u._id)} title="Delete">🗑️</button>
                             </>
                           )}
-                          {u.role === 'admin' && u._id !== JSON.parse(localStorage.getItem('user'))?._id && (
+                          {u.role === 'admin' && u._id !== JSON.parse(localStorage.getItem('user'))?.id && (
                             <button className="adm-btn adm-btn--demote" onClick={() => handleToggleRole(u._id)} title="Demote to Student">⬇️</button>
                           )}
                         </div>

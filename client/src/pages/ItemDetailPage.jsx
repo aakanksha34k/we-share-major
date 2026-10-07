@@ -32,8 +32,7 @@ function ItemDetailPage() {
   if (loading) return <div className="detail-loading">Loading...</div>;
   if (!item) return <div className="detail-loading">Item not found</div>;
 
-  const isOwner = currentUser.id === item.owner._id;
-
+const isOwner = currentUser.id === item.owner?._id;
   return (
     <div className="item-detail-page">
 
@@ -57,7 +56,7 @@ function ItemDetailPage() {
             )}
           </div>
           <div className="detail-badges">
-            <span className={`badge condition ${item.condition.toLowerCase()}`}>
+            <span className={`badge condition ${(item.condition || '').toLowerCase()}`}>
               {item.condition}
             </span>
             {item.isFree && <span className="badge free">FREE</span>}
@@ -80,14 +79,14 @@ function ItemDetailPage() {
 
           <div className="detail-owner">
             <div className="owner-avatar">
-              {item.owner.fullName?.charAt(0).toUpperCase()}
+              {item.owner?.fullName?.charAt(0).toUpperCase()}
             </div>
             <div>
-              <p className="owner-name">{item.owner.fullName}</p>
-              <p className="owner-college">{item.owner.college || 'Student'}</p>
+              <p className="owner-name">{item.owner?.fullName || 'Unknown User'}</p>
+              <p className="owner-college">{item.owner?.college || 'Student'}</p>
             </div>
             <div className="owner-rating">
-              ⭐ {item.owner.rating || 'New'}
+              ⭐ {item.owner?.rating || 'New'}
             </div>
           </div>
 

@@ -21,5 +21,13 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+(error) => {
+  if (error.response?.status === 401 && !error.config?.url?.includes('/auth/')) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    if (!['/login', '/register', '/'].includes(window.location.pathname)) window.location.href = '/login';
+  }
+  return Promise.reject(error);
+}
 
 export default api;

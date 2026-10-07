@@ -2,12 +2,14 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import './index.css'
+import './theme.css'
 
 const app = (
   <BrowserRouter>
-    <App />
+    <ErrorBoundary><App /></ErrorBoundary>
   </BrowserRouter>
 );
 

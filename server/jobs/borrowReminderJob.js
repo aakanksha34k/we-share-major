@@ -136,6 +136,39 @@ const startBorrowReminderJob = () => {
         });
       }
 
+            // Pending requests whose 3 handoff times have all passed
+      const stale = await BorrowRequest.find({
+        status: 'pending',
+        handoffOptions: { $not: { $elemMatch: { dateTime: { $gt: now } } } }
+      });
+      for (const r of stale) {
+        r.status = 'denied';
+        await r.save();
+        await Notification.create({
+          recipient: r.borrower, type: 'borrow_denied', relatedId: r._id,
+          message: 'Your request expired because the owner did not respond before any of your proposed times.'
+        });
+      }
+
+      // Free items never handed over within 24h of the agreed time: release them
+      const noShow = await BorrowRequest.find({
+        status: 'handoff_pending', paymentStatus: 'not_required',
+        selectedHandoffAt: { $lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) }
+      });
+      for (const r of noShow) {
+        r.status = 'denied';
+        await r.save();
+        await require('../models/Item').findOneAndUpdate(
+          { _id: r.item, status: 'reserved' }, { $set: { status: 'available', updatedAt: new Date() } }
+        );
+        for (const who of [r.borrower, r.lender]) {
+          await Notification.create({
+            recipient: who, type: 'borrow_denied', relatedId: r._id,
+            message: 'The handoff did not happen within 24 hours, so the booking was released.'
+          });
+        }
+      }
+
       // -----------------------------
       // Overdue reminders
       // -----------------------------

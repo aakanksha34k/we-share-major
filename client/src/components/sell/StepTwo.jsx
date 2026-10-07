@@ -118,7 +118,7 @@ function StepTwo({ formData, updateForm }) {
             onChange={(coords) => updateForm({ pickupCoordinates: coords })}
           />
           {formData.pickupCoordinates?.latitude == null && (
-            <p className="form-hint">Please click the map to select the exact pickup point.</p>
+            <p className="form-hint">Optional: click the map to mark the exact pickup point.</p>
           )}
         </div>
 

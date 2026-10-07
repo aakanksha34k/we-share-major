@@ -131,27 +131,20 @@ function SellPage() {
      * No validation for:
      * formData.pickupCoordinates
      */
-
-    if (
-      step === 3 &&
-      !formData.isFree &&
-      (
-        formData.price === '' ||
-        Number(formData.price) < 0 ||
-        Number.isNaN(Number(formData.price))
-      )
-    ) 
-      if (step === 3 && formData.listingType === 'sell' && !(Number(formData.price) > 0)) return 'Enter the selling price.';
-      {
-      return (
-        'Enter a valid non-negative price, ' +
-        'or choose Free.'
-      );
+    if (step === 3) {
+      if (formData.listingType === 'sell') {
+        if (!(Number(formData.price) > 0)) return 'Enter the selling price.';
+      } else if (
+        !formData.isFree &&
+        (formData.price === '' || Number.isNaN(Number(formData.price)) || Number(formData.price) < 0)
+      ) {
+        return 'Enter a valid price, or choose Free.';
+      }
     }
 
     return '';
   };
-
+  
   const nextStep = () => {
     const message = validateStep(currentStep);
 

@@ -532,36 +532,32 @@ const verifyHandoff = async (req, res) => {
   return res.json({ message: 'Purchase completed.', request: await populateRequest(request._id) });
 }
 
-const handoffAt = new Date();
+    const handoffAt = new Date();
+    const periodMs = Math.max(
+      new Date(request.returnDate) - new Date(request.selectedHandoffAt),
+      60 * 60 * 1000
+    );
 
-// Keep the borrowing period the borrower asked for, but start it from the REAL handoff.
-const periodMs = Math.max(
-  new Date(request.returnDate) - new Date(request.selectedHandoffAt),
-  60 * 60 * 1000 // at least 1 hour
-);
+    request.plannedReturnDate = request.returnDate;
+    request.returnDate = new Date(handoffAt.getTime() + periodMs);
+    request.reminderTomorrowSent = false;
+    request.reminderTodaySent = false;
+    request.overdueNotificationSent = false;
+    request.handoffStatus = 'verified';
+    request.handoffVerifiedAt = handoffAt;
+    request.handoffTokenHash = null;
+    request.handoffTokenExpiresAt = null;
+    request.handoffCodeHash = null;
+    request.handoffCodeExpiresAt = null;
+    request.status = 'active';
+    await request.save();
 
-request.plannedReturnDate = request.returnDate;
-request.returnDate = new Date(handoffAt.getTime() + periodMs);
-request.reminderTomorrowSent = false;
-request.reminderTodaySent = false;
-request.overdueNotificationSent = false;
-
-request.handoffStatus = 'verified';
-request.handoffVerifiedAt = handoffAt;
-request.handoffTokenHash = null;
-request.handoffTokenExpiresAt = null;
-request.handoffCodeHash = null;
-request.handoffCodeExpiresAt = null;
-request.status = 'active';
-
-message: `The handoff was verified. Return is due ${fmt(request.returnDate)}.`,
-await createNotification({
-  recipient: request.borrower,
-  type: 'handoff_verified',
-  message: `You have the item. Return it by ${fmt(request.returnDate)} to avoid a late fee of ₹${request.lateFeePerDay} per 24 hours.`,
-  request
-});
-
+    await createNotification({
+      recipient: request.borrower,
+      type: 'handoff_verified',
+      message: `You have the item. Return it by ${fmt(request.returnDate)} to avoid a late fee of ₹${request.lateFeePerDay} per 24 hours.`,
+      request
+    });
     await request.save();
 
     const item = await Item.findById(request.item);

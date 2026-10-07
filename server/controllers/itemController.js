@@ -352,15 +352,11 @@ const updateItem = async (req, res) => {
       });
     }
 
-    if (
-      item.status === 'lent' &&
-      req.user.role !== 'admin'
-    ) {
-      return res.status(400).json({
-        message:
-          'A lent item cannot be edited until it is returned.'
-      });
-    }
+    if (['lent', 'reserved', 'sold'].includes(item.status) && req.user.role !== 'admin') {
+  return res.status(400).json({
+    message: 'This item is part of an active transaction and cannot be changed right now.'
+  });
+}
 
     const data = normaliseItemData(
       pickItemFields(req.body)
@@ -441,15 +437,11 @@ const deleteItem = async (req, res) => {
       });
     }
 
-    if (
-      item.status === 'lent' &&
-      req.user.role !== 'admin'
-    ) {
-      return res.status(400).json({
-        message:
-          'A lent item cannot be deleted until it is returned.'
-      });
-    }
+    if (['lent', 'reserved', 'sold'].includes(item.status) && req.user.role !== 'admin') {
+  return res.status(400).json({
+    message: 'This item is part of an active transaction and cannot be changed right now.'
+  });
+}
 
     await Item.findByIdAndDelete(req.params.id);
 

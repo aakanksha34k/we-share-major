@@ -23,8 +23,8 @@ function ItemCard({ item }) {
         ) : (
           <div className="item-image-placeholder">📦</div>
         )}
-        <span className={`item-condition ${item.condition.toLowerCase()}`}>
-          {item.condition}
+        <span className={`item-condition ${(item.condition || '').toLowerCase()}`}>
+          {item.condition || 'N/A'}
         </span>
         {item.price === 0 && (
           <span className="item-free-badge">FREE</span>
