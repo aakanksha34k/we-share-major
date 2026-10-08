@@ -17,7 +17,7 @@ const forgotPassword = async (req, res) => {
       user.resetExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
       await user.save();
 
-      const base = (process.env.CLIENT_URL || 'http://localhost:5173').split(',')[0].trim();
+      const base = require('../utils/clientUrl').clientBase();
       const link = `${base}/reset-password?token=${token}`;
       await sendEmail({
         to: email,

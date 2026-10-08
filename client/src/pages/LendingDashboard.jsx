@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import StatusBadge from '../components/StatusBadge';
+import TypeBadge from '../components/TypeBadge';
 import { formatDateTime, formatMoney, nextStep } from '../utils/borrowStatus';
 import './LendingDashboard.css';
 
@@ -24,7 +25,7 @@ function RequestCard({ req, role, onOpen, onDeny }) {
       <div className="ld-info">
         <div className="ld-title-row">
           <h3>{req.item?.title || 'Item removed'}</h3>
-          <StatusBadge status={req.status} />
+          <TypeBadge type={req.type} /> <StatusBadge status={req.status} />
         </div>
         <p className="ld-meta">
           {role === 'lender' ? 'From' : 'Owner'}: <strong>{other?.fullName || 'Unknown'}</strong>
@@ -151,7 +152,7 @@ function LendingDashboard() {
                 <div className="ld-info">
                   <div className="ld-title-row">
                     <h3>{item.title || 'Untitled draft'}</h3>
-                    <StatusBadge status={item.status} kind="item" />
+                    <TypeBadge type={item.listingType} /> <StatusBadge status={item.status} kind="item" />
                   </div>
                   <p className="ld-meta">{formatMoney(item.isFree ? 0 : item.price)} · {item.category || 'No category yet'}</p>
                   <p className="ld-meta">📍 {item.pickupLocation || 'No pickup location yet'}</p>

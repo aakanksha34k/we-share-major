@@ -1,5 +1,5 @@
 const Message = require('../models/Message');
-const Notification = require('../models/Notification'); // top of file
+const Notification = require('../models/Notification');
 const User = require('../models/User');
 
 const sendMessage = async (req, res) => {
@@ -7,38 +7,43 @@ const sendMessage = async (req, res) => {
     const { receiverId, content } = req.body;
 
     if (!receiverId || !content?.trim()) {
-      return res.status(400).json({
-        message: 'Receiver and message content are required'
-      });
+      return res.status(400).json({ message: 'Receiver and message content are required' });
+    }
+    if (String(receiverId) === String(req.user.id)) {
+      return res.status(400).json({ message: 'You cannot message yourself' });
     }
 
-    const newMessage = new Message({
+    // Check the recipient BEFORE saving anything.
+    const recipient = await User.findById(receiverId).select('_id isBanned');
+    if (!recipient) return res.status(404).json({ message: 'Recipient not found' });
+
+    const newMessage = await Message.create({
       sender: req.user.id,
       receiver: receiverId,
-      content: content.trim()
+      content: content.trim().slice(0, 2000)
     });
 
-    await newMessage.save();
-    const recipient = await User.findById(receiverId).select('_id');
-if (!recipient) return res.status(404).json({ message: 'Recipient not found' });
+    // One unread "new message" notification per sender is enough.
+    try {
+      const alreadyUnread = await Notification.exists({
+        recipient: receiverId, type: 'new_message', relatedId: req.user._id, isRead: false
+      });
+      if (!alreadyUnread) {
+        await Notification.create({
+          recipient: receiverId,
+          type: 'new_message',
+          message: 'You have a new message. Open it to reply.',
+          relatedId: req.user._id
+        });
+      }
+    } catch (notificationError) {
+      console.error('Message notification error:', notificationError.message);
+    }
 
-    res.status(201).json(newMessage);
-    const alreadyUnread = await Notification.exists({
-  recipient: receiverId, type: 'new_message', relatedId: req.user._id, isRead: false
-});
-if (!alreadyUnread) {
-  await Notification.create({
-    recipient: receiverId, type: 'new_message',
-    message: 'You have a new message. Open it to reply.',
-    relatedId: req.user._id
-  });
-}
+    return res.status(201).json(newMessage);
   } catch (err) {
     console.error('Error sending message:', err);
-
-    res.status(500).json({
-      message: 'Error sending message'
-    });
+    return res.status(500).json({ message: 'Error sending message' });
   }
 };
 
@@ -49,51 +54,28 @@ const getConversation = async (req, res) => {
 
     const messages = await Message.find({
       $or: [
-        {
-          sender: currentUserId,
-          receiver: userId
-        },
-        {
-          sender: userId,
-          receiver: currentUserId
-        }
+        { sender: currentUserId, receiver: userId },
+        { sender: userId, receiver: currentUserId }
       ]
     }).sort({ createdAt: 1 });
 
-    // Mark messages from the other user as read
     await Message.updateMany(
-      {
-        sender: userId,
-        receiver: currentUserId,
-        read: false
-      },
-      {
-        $set: {
-          read: true
-        }
-      }
+      { sender: userId, receiver: currentUserId, read: false },
+      { $set: { read: true } }
     );
 
     res.status(200).json(messages);
   } catch (err) {
     console.error('Error getting conversation:', err);
-
-    res.status(500).json({
-      message: 'Error getting conversation'
-    });
+    res.status(500).json({ message: 'Error getting conversation' });
   }
 };
 
 const getConversationsList = async (req, res) => {
   try {
-    const currentUserId = req.user.id;
+    const currentId = req.user.id.toString();
 
-    const messages = await Message.find({
-      $or: [
-        { sender: currentUserId },
-        { receiver: currentUserId }
-      ]
-    })
+    const messages = await Message.find({ $or: [{ sender: currentId }, { receiver: currentId }] })
       .sort({ createdAt: -1 })
       .populate('sender', 'fullName profilePicture')
       .populate('receiver', 'fullName profilePicture');
@@ -101,32 +83,11 @@ const getConversationsList = async (req, res) => {
     const conversations = new Map();
 
     messages.forEach((msg) => {
-      /*
-       * A user may have been deleted after a message
-       * was created. In that case Mongoose populate()
-       * returns null.
-       *
-       * Never access ._id until we know the user exists.
-       */
+      // A user may have been deleted: populate() then returns null.
+      if (!msg.sender || !msg.receiver) return;
 
-      if (!msg.sender || !msg.receiver) {
-        return;
-      }
-
-      const senderId = msg.sender._id.toString();
-      const receiverId = msg.receiver._id.toString();
-      const currentId = currentUserId.toString();
-
-      const isSender = senderId === currentId;
-
-      const otherUser = isSender
-        ? msg.receiver
-        : msg.sender;
-
-      if (!otherUser?._id) {
-        return;
-      }
-
+      const isSender = msg.sender._id.toString() === currentId;
+      const otherUser = isSender ? msg.receiver : msg.sender;
       const otherId = otherUser._id.toString();
 
       if (!conversations.has(otherId)) {
@@ -134,33 +95,18 @@ const getConversationsList = async (req, res) => {
           user: otherUser,
           lastMessage: msg.content,
           timestamp: msg.createdAt,
-          unreadCount:
-            !isSender && !msg.read
-              ? 1
-              : 0
+          unreadCount: !isSender && !msg.read ? 1 : 0
         });
       } else if (!isSender && !msg.read) {
         conversations.get(otherId).unreadCount += 1;
       }
     });
 
-    res.status(200).json(
-      Array.from(conversations.values())
-    );
+    res.status(200).json(Array.from(conversations.values()));
   } catch (err) {
-    console.error(
-      'Error getting conversation list:',
-      err
-    );
-
-    res.status(500).json({
-      message: 'Error getting conversation list'
-    });
+    console.error('Error getting conversation list:', err);
+    res.status(500).json({ message: 'Error getting conversation list' });
   }
 };
 
-module.exports = {
-  sendMessage,
-  getConversation,
-  getConversationsList
-};
+module.exports = { sendMessage, getConversation, getConversationsList };

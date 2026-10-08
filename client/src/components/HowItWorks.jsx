@@ -13,7 +13,7 @@ const steps = [
     icon: '💬',
     step: '2',
     title: 'Connect with students',
-    desc: 'Chat with verified students from nearby campuses through our secure platform. Every user is verified with a university email.',
+    desc: 'Chat with verified students from nearby campuses through our secure platform. Every user signs up with a verified Gmail account.',
   },
   {
     icon: '🤝',

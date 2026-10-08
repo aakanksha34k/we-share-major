@@ -142,8 +142,8 @@ export const nextStep = (role, r) => {
         : 'Waiting for the borrower to confirm the return date.';
     case 'payment_pending':
       return borrower
-        ? `Pay ${price} to confirm this booking.`
-        : 'Waiting for the borrower to pay. The booking is released if they don’t pay in 30 minutes.';
+        ? `Pay ${price} to confirm this booking${r.paymentDueAt ? ' before ' + formatDateTime(r.paymentDueAt) : ''}.`
+        : `Waiting for the borrower to pay. The booking is released if they don’t pay ${r.paymentDueAt ? 'by ' + formatDateTime(r.paymentDueAt) : 'in time'}.`;
     case 'handoff_pending':
       return borrower
         ? 'Meet the owner, then scan their QR code or type their 6-digit code. Your return time starts counting from that moment.'

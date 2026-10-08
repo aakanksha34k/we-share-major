@@ -1,18 +1,17 @@
-// src/components/StatsBar.jsx
+import './StatsBar.css';
 
-import "./StatsBar.css";
-
+// Honest highlights instead of made-up user numbers.
 const stats = [
-  { value: "12,000+", label: "Active Students" },
-  { value: "45,000+", label: "Items Shared" },
-  { value: "₹2 Cr+", label: "Money Saved" },
+  { value: '₹0', label: 'To list an item' },
+  { value: 'QR + Code', label: 'Verified handoffs' },
+  { value: 'Gmail', label: 'Verified students only' },
 ];
 
 function StatsBar() {
   return (
     <section id="stats" className="stats-bar">
-      {stats.map((stat, index) => (
-        <div className="stat-item" key={index}>
+      {stats.map((stat) => (
+        <div className="stat-item" key={stat.label}>
           <h2>{stat.value}</h2>
           <p>{stat.label}</p>
         </div>

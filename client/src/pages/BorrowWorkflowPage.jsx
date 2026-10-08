@@ -6,6 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import api from '../api';
 import PickupMap from '../components/PickupMap';
 import StatusBadge from '../components/StatusBadge';
+import TypeBadge from '../components/TypeBadge';
 import { loadRazorpay } from '../utils/razorpay';
 import {
   formatDateTime,
@@ -380,7 +381,7 @@ function BorrowWorkflowPage() {
     ['overdue', 'late_fee_pending'].includes(request.status) &&
     request.lateFeePaymentStatus !== 'captured';
   const returnable = ['active', 'overdue', 'late_fee_paid'].includes(request.status);
-  const paymentDeadline = request.approvedAt
+  const paymentDeadline = request.paymentDueAt ? new Date(request.paymentDueAt) : request.approvedAt
     ? new Date(new Date(request.approvedAt).getTime() + 30 * 60000)
     : null;
 
@@ -409,7 +410,7 @@ function BorrowWorkflowPage() {
                 <strong>{other?.fullName || 'a student'}</strong>
               </p>
             </div>
-            <StatusBadge status={request.status} />
+            <TypeBadge type={request.type} /> <StatusBadge status={request.status} />
           </div>
 
           {request.status !== 'denied' && (

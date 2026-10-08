@@ -9,8 +9,9 @@ const notificationSchema = new mongoose.Schema({
       'handoff_ready', 'handoff_verified', 'borrow_reminder', 'borrow_due',
       'borrow_overdue', 'complaint_update', 'late_fee_required', 'late_fee_paid', 'borrow_returned',
       'new_message', 'item_approved', 'item_rejected', 'announcement',
-      // added so borrowController notifications pass validation
-      'return_date_confirmed', 'return_verified'
+      'return_date_confirmed', 'return_verified',
+      // new
+      'payment_reminder', 'handoff_reminder', 'request_reminder', 'admin_alert'
     ],
     required: true
   },
@@ -18,5 +19,7 @@ const notificationSchema = new mongoose.Schema({
   isRead: { type: Boolean, default: false },
   relatedId: { type: mongoose.Schema.Types.ObjectId, required: false }
 }, { timestamps: true });
+
+notificationSchema.index({ recipient: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

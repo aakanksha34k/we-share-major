@@ -7,8 +7,19 @@ const REQUEST_TYPES = new Set([
   'borrow_request', 'borrow_approved', 'borrow_denied', 'payment_success',
   'handoff_ready', 'handoff_verified', 'borrow_reminder', 'borrow_due',
   'borrow_overdue', 'late_fee_required', 'late_fee_paid', 'borrow_returned',
-  'return_date_confirmed', 'return_verified'
+  'return_date_confirmed', 'return_verified',
+  'payment_reminder', 'handoff_reminder', 'request_reminder'
 ]);
+
+const ICONS = {
+  announcement: '📢', complaint_update: '⚠️', admin_alert: '🛡️', new_message: '💬',
+  payment_reminder: '⏰', handoff_reminder: '⏰', request_reminder: '⏰', borrow_reminder: '⏰', borrow_due: '⏰',
+  borrow_overdue: '🚨', late_fee_required: '🚨', late_fee_paid: '💳', payment_success: '💳',
+  item_approved: '✅', borrow_approved: '✅', item_rejected: '❌', borrow_denied: '❌',
+  borrow_request: '📥', handoff_ready: '🤝', handoff_verified: '🤝', return_verified: '✅'
+};
+
+const clean = (n) => (n.type === 'announcement' ? n.message.replace(/^📢\s*Admin Announcement:\s*/i, '') : n.message);
 
 function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
@@ -42,15 +53,12 @@ function NotificationBell() {
     try { await api.put(`/notifications/${n._id}/read`); refresh(); } catch { /* ignore */ }
     setShowDropdown(false);
 
-    if (n.type === 'complaint_update') {
-      navigate(n.relatedId ? `/borrow/${n.relatedId}` : '/complaints');
-    } else if (n.type === 'new_message' && n.relatedId) {
-      navigate(`/messages/${n.relatedId}`);
-    } else if (n.relatedId && REQUEST_TYPES.has(n.type)) {
-      navigate(`/borrow/${n.relatedId}`);
-    } else if (n.type.startsWith('item_')) {
-      navigate('/lending-dashboard');
-    }
+    if (n.type === 'announcement') return;
+    if (n.type === 'admin_alert') navigate('/admin');
+    else if (n.type === 'complaint_update') navigate(n.relatedId ? `/borrow/${n.relatedId}` : '/complaints');
+    else if (n.type === 'new_message' && n.relatedId) navigate(`/messages/${n.relatedId}`);
+    else if (n.relatedId && REQUEST_TYPES.has(n.type)) navigate(`/borrow/${n.relatedId}`);
+    else if (n.type.startsWith('item_')) navigate('/lending-dashboard');
   };
 
   const markAllAsRead = async () => {
@@ -58,10 +66,11 @@ function NotificationBell() {
   };
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const hasUnreadAnnouncement = notifications.some((n) => n.type === 'announcement' && !n.isRead);
 
   return (
     <div className="notification-bell-container" ref={dropdownRef}>
-      <div className="bell-icon" role="button" tabIndex={0}
+      <div className={`bell-icon ${hasUnreadAnnouncement ? 'bell-ring' : ''}`} role="button" tabIndex={0}
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
         onClick={() => setShowDropdown((s) => !s)}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setShowDropdown((s) => !s)}>
@@ -79,8 +88,11 @@ function NotificationBell() {
             {notifications.length === 0 ? (
               <p className="n-empty">No notifications yet.</p>
             ) : notifications.map((n) => (
-              <div key={n._id} className={`n-item ${n.isRead ? 'read' : 'unread'}`} onClick={() => openNotification(n)}>
-                <p>{n.message}</p>
+              <div key={n._id}
+                className={`n-item ${n.isRead ? 'read' : 'unread'} ${n.type === 'announcement' ? 'is-announcement' : ''}`}
+                onClick={() => openNotification(n)}>
+                {n.type === 'announcement' && <span className="n-tag">Announcement</span>}
+                <p><span className="n-icon">{ICONS[n.type] || '🔔'}</span> {clean(n)}</p>
                 <span className="n-time">
                   {new Date(n.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
                 </span>

@@ -1,9 +1,9 @@
-// client/src/pages/ItemDetailPage.jsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import BorrowModal from '../components/BorrowModal';
 import PickupMap from '../components/PickupMap';
+import TypeBadge from '../components/TypeBadge';
 import './ItemDetailPage.css';
 
 function ItemDetailPage() {
@@ -15,38 +15,33 @@ function ItemDetailPage() {
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
 
   useEffect(() => {
+    const fetchItem = async () => {
+      try {
+        const response = await api.get(`/items/${id}`);
+        setItem(response.data);
+      } catch (err) {
+        console.error('Failed to fetch item:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchItem();
   }, [id]);
-
-  const fetchItem = async () => {
-    try {
-      const response = await api.get(`/items/${id}`);
-      setItem(response.data);
-    } catch (err) {
-      console.error('Failed to fetch item:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) return <div className="detail-loading">Loading...</div>;
   if (!item) return <div className="detail-loading">Item not found</div>;
 
-const isOwner = currentUser.id === item.owner?._id;
+  const isOwner = currentUser.id === item.owner?._id;
+  const isSale = item.listingType === 'sell';
+
   return (
     <div className="item-detail-page">
-
-      {/* Header */}
       <div className="detail-header">
-        <button className="btn-back" onClick={() => navigate('/dashboard')}>
-          ← Back to Dashboard
-        </button>
+        <button className="btn-back" onClick={() => navigate('/dashboard')}>← Back to Dashboard</button>
         <span className="detail-logo">🔗 We Share</span>
       </div>
 
       <div className="detail-content">
-
-        {/* Left — Image */}
         <div className="detail-left">
           <div className="detail-image">
             {item.photos && item.photos.length > 0 ? (
@@ -56,15 +51,12 @@ const isOwner = currentUser.id === item.owner?._id;
             )}
           </div>
           <div className="detail-badges">
-            <span className={`badge condition ${(item.condition || '').toLowerCase()}`}>
-              {item.condition}
-            </span>
+            <TypeBadge type={item.listingType} />
+            <span className={`badge condition ${(item.condition || '').toLowerCase()}`}>{item.condition}</span>
             {item.isFree && <span className="badge free">FREE</span>}
-            {item.listingType === 'sell' && <span className="badge trade">FOR SALE</span>}
           </div>
         </div>
 
-        {/* Right — Details */}
         <div className="detail-right">
           <p className="detail-category">📂 {item.category}</p>
           <h1>{item.title}</h1>
@@ -73,21 +65,23 @@ const isOwner = currentUser.id === item.owner?._id;
             {item.isFree ? (
               <span className="price-free">FREE</span>
             ) : (
-              <span className="price-amount">₹{item.price}</span>
+              <span className="price-amount">₹{item.price}{!isSale && <small className="price-unit"> per borrow</small>}</span>
             )}
           </div>
 
+          <p className={`detail-type-note detail-type-note--${isSale ? 'sell' : 'lend'}`}>
+            {isSale
+              ? 'This item is for sale. Once you pay and collect it, it is yours. After the owner approves, you get about 2 days to pay.'
+              : 'This item is for lending. You return it by the agreed time; late returns cost a daily fee.'}
+          </p>
+
           <div className="detail-owner">
-            <div className="owner-avatar">
-              {item.owner?.fullName?.charAt(0).toUpperCase()}
-            </div>
+            <div className="owner-avatar">{item.owner?.fullName?.charAt(0).toUpperCase()}</div>
             <div>
               <p className="owner-name">{item.owner?.fullName || 'Unknown User'}</p>
               <p className="owner-college">{item.owner?.college || 'Student'}</p>
             </div>
-            <div className="owner-rating">
-              ⭐ {item.owner?.rating || 'New'}
-            </div>
+            <div className="owner-rating">⭐ {item.owner?.rating || 'New'}</div>
           </div>
 
           <div className="detail-description">
@@ -113,9 +107,7 @@ const isOwner = currentUser.id === item.owner?._id;
             </div>
             <div className="info-item">
               <span className="info-label">📅 Listed On</span>
-              <span className="info-value">
-                {new Date(item.createdAt).toLocaleDateString('en-IN')}
-              </span>
+              <span className="info-value">{new Date(item.createdAt).toLocaleDateString('en-IN')}</span>
             </div>
             <div className="info-item">
               <span className="info-label">📦 Status</span>
@@ -123,43 +115,34 @@ const isOwner = currentUser.id === item.owner?._id;
             </div>
           </div>
 
-          {/* Action Buttons */}
           {!isOwner && item.status === 'available' && (
             <div className="detail-actions">
-              <button
-                className="btn-borrow"
-                onClick={() => setShowModal(true)}
-              >
-                {item.listingType === 'sell' ? '🛒 Buy this item' : '📋 Request to Borrow'}
+              <button className="btn-borrow" onClick={() => setShowModal(true)}>
+                {isSale ? '🛒 Buy this item' : '📋 Request to Borrow'}
               </button>
-              <button 
-                className="btn-message"
-                onClick={() => navigate(`/messages/${item.owner._id}`)}
-              >
-                💬 Message Seller
+              <button className="btn-message" onClick={() => navigate(`/messages/${item.owner._id}`)}>
+                💬 Message {isSale ? 'Seller' : 'Owner'}
               </button>
             </div>
           )}
 
           {isOwner && (
             <div className="detail-actions">
-              <button className="btn-edit" onClick={() => navigate(`/sell/${item._id}`)}>
-                ✏️ Edit Listing
-              </button>
+              <button className="btn-edit" onClick={() => navigate(`/sell/${item._id}`)}>✏️ Edit Listing</button>
             </div>
           )}
 
           {currentUser.role === 'admin' && (
             <div className="detail-actions" style={{ marginTop: '10px' }}>
-              <button 
-                className="btn-edit" 
+              <button
+                className="btn-edit"
                 style={{ backgroundColor: 'red', color: 'white', width: '100%' }}
                 onClick={async () => {
-                  if(window.confirm('Are you sure you want to delete this item?')) {
+                  if (window.confirm('Are you sure you want to delete this item?')) {
                     try {
                       await api.delete(`/admin/items/${item._id}`);
                       navigate('/dashboard');
-                    } catch (err) {
+                    } catch {
                       alert('Failed to delete item.');
                     }
                   }
@@ -170,18 +153,12 @@ const isOwner = currentUser.id === item.owner?._id;
             </div>
           )}
 
-          {item.status === 'lent' && (
-            <div className="detail-unavailable">
-              ⚠️ This item is currently lent out and not available.
-            </div>
-          )}
-          {item.status === 'sold' && (
-  <div className="detail-unavailable">This item has been sold.</div>
-)}
+          {item.status === 'lent' && <div className="detail-unavailable">⚠️ This item is currently lent out and not available.</div>}
+          {item.status === 'reserved' && <div className="detail-unavailable">⏳ This item is reserved for another student.</div>}
+          {item.status === 'sold' && <div className="detail-unavailable">This item has been sold.</div>}
         </div>
       </div>
 
-      {/* Borrow Modal */}
       {showModal && (
         <BorrowModal
           item={item}

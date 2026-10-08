@@ -74,7 +74,7 @@ finishLogin(response);
           <h1><Link to="/" className="auth-home-link">🔗 We Share</Link></h1>
           <h2>By students, for students.</h2>
           <p>Connect with peers across the city. Trade books, lab gear, and notes without the middleman.</p>
-          <div className="login-stats">Join 5,000+ students in the network</div>
+          <div className="login-stats">Join your campus network</div>
         </div>
       </div>
 

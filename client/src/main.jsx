@@ -6,6 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import './index.css'
 import './theme.css'
+import './polish.css'
 
 const app = (
   <BrowserRouter>
